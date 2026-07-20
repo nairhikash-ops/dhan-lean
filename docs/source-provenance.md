@@ -126,14 +126,19 @@ as **documentation mismatch** or **unresolved** before using either value.
 |-----------|-------|
 | **Repository URL** | https://github.com/QuantConnect/Lean |
 | **License** | Apache-2.0 |
-| **Latest formal release** | `v2.4.0.1` (2024-08-08) |
-| **Latest commit tag** | `17932` (2026-07-17) |
-| **Versioning scheme** | Formal releases (v2.x.x.x) + rolling commit tags |
+| **Latest formal release** | `v2.4.0.1` (2024-08-08) — **recommended for PoC pinning** |
+| **Latest commit tag** | `17932` (2026-07-17) — rolling commit on `master`, ahead of `v2.4.0.1` |
+| **Versioning scheme** | Formal releases (v2.x.x.x) + rolling commit tags on `master` |
 | **Primary language** | C# 94.2%, Python 5.6% |
 | **Runtime** | .NET 10 SDK |
 | **Python integration** | Python.NET (`QuantConnect.pythonnet 2.0.64`) |
 | **Docker base image** | `quantconnect/lean:foundation` |
 | **Docker entry point** | `dotnet QuantConnect.Lean.Launcher.dll` |
+
+**Important**: `v2.4.0.1` and commit `17932` are different checkpoints.
+`v2.4.0.1` is the latest tagged formal release. `17932` is a rolling commit
+on `master` that is ahead of `v2.4.0.1`. For the PoC, pin to `v2.4.0.1`
+(the formal release) unless a specific feature from a newer commit is needed.
 
 This is the **backtesting engine**. LEAN is a C# application that runs
 algorithms written in C# or Python (via Python.NET). Docker is required for
