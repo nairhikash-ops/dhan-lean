@@ -105,17 +105,17 @@ Data/equity/india/daily/{ticker}.zip
 
 | LEAN Field | Dhan Field | Match? | Notes |
 |------------|-----------|--------|-------|
-| `open` | `open` | Yes | Dhan returns integer (price × 100) |
-| `high` | `high` | Yes | Dhan returns integer (price × 100) |
-| `low` | `low` | Yes | Dhan returns integer (price × 100) |
-| `close` | `close` | Yes | Dhan returns integer (price × 100) |
+| `open` | `open` | Yes | Dhan returns float (actual price) |
+| `high` | `high` | Yes | Dhan returns float (actual price) |
+| `low` | `low` | Yes | Dhan returns float (actual price) |
+| `close` | `close` | Yes | Dhan returns float (actual price) |
 | `volume` | `volume` | Yes | Dhan returns integer (shares) |
 | (none) | `open_interest` | Extra | Not used in LEAN equity format; discard or store separately |
 | (none) | `trade_count` | Extra | Not used in LEAN equity format; discard |
 
-**Critical conversion**: Dhan prices are returned as integers (price × 100).
-The converter must divide by 100 to get the actual price. This is CONFIRMED
-BY OFFICIAL DOCUMENTATION (`docs/dhan-docs-export.md`).
+**Critical conversion**: Dhan OHLC prices are returned as floats (actual prices).
+The converter must multiply by 10,000 to get the LEAN deci-cents storage value.
+This is CONFIRMED BY OFFICIAL DOCUMENTATION (`docs/dhan-docs-export.md` lines 768-771).
 
 ---
 

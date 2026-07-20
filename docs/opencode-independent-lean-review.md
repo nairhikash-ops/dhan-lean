@@ -394,10 +394,14 @@ Additionally, **symbol properties for India equity are unverified** — if LEAN 
 ### Required Before PoC
 
 1. Correct the price scaling in all documents (×10,000, not ×100)
-2. ~~Verify the correct daily bar timestamp for India~~ **RESOLVED**: `YYYYMMDD 00:00` confirmed
+2. **RESOLVED**: `YYYYMMDD 00:00` confirmed
 3. Test that `AddEquity("TICKER", Market.India)` works without explicit symbol properties
-4. ~~Verify Dhan API returns floats (not integers ×100) via live call or fixture inspection~~ **RESOLVED**: Dhan API docs confirm `float` type for OHLCV
+4. **RESOLVED**: Dhan API docs confirm `float` type for OHLCV
 5. Pin LEAN engine to `v2.4.0.1` (not an arbitrary commit)
+
+**Remaining runtime blockers**:
+1. Symbol properties for India equity: UNRESOLVED — verification requires running `lean backtest` with a minimal algorithm
+2. AddEquity without symbol properties: UNRESOLVED — needs runtime test
 
 ### Files Needing Amendment
 
