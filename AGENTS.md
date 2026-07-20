@@ -126,8 +126,11 @@ installation.
 - LEAN's native equity data format is the primary integration route (Route A).
 - Dhan historical data must be converted to LEAN's CSV-in-ZIP format before
   backtesting.
-- Dhan prices are returned as integers (price × 100); the converter must
-  divide by 100 to get actual prices.
+- Dhan historical data API returns OHLCV as `float` type (CONFIRMED BY
+  OFFICIAL DOCUMENTATION, `docs/dhan-docs-export.md` lines 768-773).
+  LEAN equity data uses `_scaleFactor = 1/10000m` (CONFIRMED BY SOURCE CODE,
+  `TradeBar.cs`). The converter must multiply Dhan float prices by 10,000 to
+  produce LEAN's deci-cent format.
 - Do not assume LEAN's India equity dataset is complete. Supply own data.
 - Do not assume mapping or factor files exist for a given ticker without
   verifying.

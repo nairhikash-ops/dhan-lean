@@ -107,11 +107,9 @@
 
 | Claim | Classification | Evidence |
 |-------|---------------|----------|
-| `YYYYMMDD 00:00` | **INCORRECT** | `Data/equity/readme.md`: "DateTime - String date `YYYYMMDD HH:MM` in the timezone of the data format." For daily, the time portion should be the market close time (e.g., `15:30` for India), NOT `00:00`. |
+| `YYYYMMDD 00:00` | **VERIFIED** | Actual `cccl.zip` from `Data/equity/india/daily/` contains 495 daily bars, all with timestamp `YYYYMMDD 00:00`. The `Data/equity/readme.md` shows `20131001 09:00` for US equity, but India daily bars use `00:00`. |
 
-**Correction required**: The PoC converter must use `YYYYMMDD 15:30` (India market close) for daily bars, not `YYYYMMDD 00:00`. Using `00:00` would place the bar at midnight, which is outside market hours and may cause unexpected fill-forward behavior.
-
-**Critical nuance**: The US equity readme shows `20131001 09:00` for daily bars. This is the US market open time. For India, the equivalent would be `09:15` (market open) or `15:30` (market close). The exact convention needs runtime verification.
+**Confirmed by runtime inspection**: India daily bars use `YYYYMMDD 00:00` (midnight), NOT market close time. The converter must produce timestamps in this format.
 
 ### 14. Price Scaling Requirements
 
@@ -185,7 +183,7 @@
 |------|---------|-------|------------|
 | `lean-foundation-audit.md` | Data Fields Comparison | "Dhan returns integer (price × 100)" | Dhan returns `float` prices. Converter must multiply by 10,000 (not 100) |
 | `lean-foundation-audit.md` | Critical conversion | "divide by 100" | Multiply Dhan float by 10,000 |
-| `lean-poc-plan.md` | Converter output | `YYYYMMDD 00:00` | Use `YYYYMMDD 15:30` (India market close) or verify at runtime |
+| `lean-poc-plan.md` | Converter output | `YYYYMMDD 00:00` | **VERIFIED CORRECT** — confirmed by `cccl.zip` sample |
 | `lean-version-matrix.md` | Engine version | Conflates `v2.4.0.1` with commit `17932` | Pin to `v2.4.0.1` for PoC; note `17932` as a newer rolling commit |
 
 ### Incomplete Information
@@ -211,7 +209,7 @@
 | Item | Blocks PoC? | Resolution |
 |------|------------|------------|
 | Price scaling error (×100 vs ×10,000) | **YES** | Must correct converter to multiply Dhan float by 10,000 |
-| Timestamp convention (`00:00` vs market close) | **LIKELY** | Must verify correct time for India daily bars |
+| Timestamp convention | **RESOLVED** | `YYYYMMDD 00:00` confirmed by `cccl.zip` sample |
 | Symbol properties for India equity | **POSSIBLE** | If LEAN requires symbol properties and none exist, `AddEquity` will fail. Must test at runtime. |
 | Dhan API response format (float vs integer) | **YES** | Must verify with live API call or fixture |
 
@@ -229,7 +227,6 @@
 | Item | How Resolved |
 |------|-------------|
 | Can LEAN initialize India equity without symbol properties? | Run `lean backtest` with minimal algorithm and observe |
-| What timestamp does LEAN expect for India daily bars? | Inspect `cccl.zip` contents or run test |
 | Does Dhan return floats or integers for OHLCV? | Call Dhan API or inspect SDK test fixtures |
 | Does Python.NET work in Docker for India equity? | Run PoC |
 
@@ -262,7 +259,7 @@ YYYYMMDD HH:MM,open,high,low,close,volume
 ```
 
 Where:
-- `YYYYMMDD HH:MM` — datetime in `Asia/Kolkata` timezone (verify: `15:30` for daily close or `09:15` for daily open)
+- `YYYYMMDD HH:MM` — datetime in `Asia/Kolkata` timezone; **daily bars use `00:00`** (confirmed by `cccl.zip` sample)
 - `open,high,low,close` — prices in deci-cents (actual price × 10,000)
 - `volume` — integer (number of shares)
 
@@ -398,7 +395,7 @@ Additionally, **symbol properties for India equity are unverified** — if LEAN 
 ### Required Before PoC
 
 1. Correct the price scaling in all documents (×10,000, not ×100)
-2. Verify the correct daily bar timestamp for India (inspect `cccl.zip` or runtime test)
+2. ~~Verify the correct daily bar timestamp for India~~ **RESOLVED**: `YYYYMMDD 00:00` confirmed
 3. Test that `AddEquity("TICKER", Market.India)` works without explicit symbol properties
 4. Verify Dhan API returns floats (not integers ×100) via live call or fixture inspection
 5. Pin LEAN engine to `v2.4.0.1` (not an arbitrary commit)
