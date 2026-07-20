@@ -1,0 +1,146 @@
+# =============================================================================
+# dhan-lean — root .gitignore
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Credentials, secrets, and environment files
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+.secret
+.secrets
+
+# ---------------------------------------------------------------------------
+# Python runtime artifacts
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ---------------------------------------------------------------------------
+# Virtual environments
+# ---------------------------------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+.virtualenv/
+
+# ---------------------------------------------------------------------------
+# Distribution and packaging
+# ---------------------------------------------------------------------------
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# ---------------------------------------------------------------------------
+# Testing and coverage
+# ---------------------------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# ---------------------------------------------------------------------------
+# Logging and temporary files
+# ---------------------------------------------------------------------------
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------------
+# Project data, results, and generated outputs
+# ---------------------------------------------------------------------------
+data/
+results/
+backtests/
+lean_data/
+output/
+reports/
+
+# ---------------------------------------------------------------------------
+# LEAN-specific (future — excluded from baseline)
+# ---------------------------------------------------------------------------
+Launcher/
+QuantConnect.Lean*/
+Results/
+Storage/
+lean.json.bak
+
+# ---------------------------------------------------------------------------
+# Cache directories
+# ---------------------------------------------------------------------------
+.cache/
+.ruff_cache/
+.pyright/
+.pylance/
+
+# ---------------------------------------------------------------------------
+# IDE and editor state
+# ---------------------------------------------------------------------------
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+!.vscode/extensions.json
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.ntvs_analysis.dat
+*.njsproj
+*.sln
+
+# ---------------------------------------------------------------------------
+# OS-generated files
+# ---------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ---------------------------------------------------------------------------
+# Nested Git repositories — exclude .git metadata only
+# The source files inside these directories ARE committed as project files.
+# Do NOT convert to submodules without explicit approval.
+# ---------------------------------------------------------------------------
+references/DhanHQ-py/.git/
+references/DhanHQ-py-v2.2.0/.git/
+
+# Also guard against any other accidental nested git directories under references/
+references/**/.git/
