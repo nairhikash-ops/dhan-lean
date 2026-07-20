@@ -115,7 +115,7 @@
 
 | Claim | Classification | Evidence |
 |-------|---------------|----------|
-| "Dhan returns integer (price × 100)" | **INCORRECT** | Dhan API docs: `open`, `high`, `low`, `close` are `float` type. Dhan returns actual prices (e.g., `1234.56`), NOT integers × 100. |
+| "Dhan returns integer (price × 100)" | **INCORRECT** | Dhan API docs (`dhan-docs-export.md` lines 768-771): `open`, `high`, `low`, `close` are `float` type. Dhan returns actual prices (e.g., `1234.56`), NOT integers × 100. |
 | "LEAN divides by 100" | **INCORRECT** | `TradeBar.cs`: `private const decimal _scaleFactor = 1 / 10000m;` — LEAN divides by 10,000 for equity data |
 | Converter must divide by 100 | **INCORRECT** | Converter must multiply Dhan float prices by 10,000 to get LEAN's deci-cents format |
 
@@ -227,7 +227,6 @@
 | Item | How Resolved |
 |------|-------------|
 | Can LEAN initialize India equity without symbol properties? | Run `lean backtest` with minimal algorithm and observe |
-| Does Dhan return floats or integers for OHLCV? | Call Dhan API or inspect SDK test fixtures |
 | Does Python.NET work in Docker for India equity? | Run PoC |
 
 ---
@@ -397,7 +396,7 @@ Additionally, **symbol properties for India equity are unverified** — if LEAN 
 1. Correct the price scaling in all documents (×10,000, not ×100)
 2. ~~Verify the correct daily bar timestamp for India~~ **RESOLVED**: `YYYYMMDD 00:00` confirmed
 3. Test that `AddEquity("TICKER", Market.India)` works without explicit symbol properties
-4. Verify Dhan API returns floats (not integers ×100) via live call or fixture inspection
+4. ~~Verify Dhan API returns floats (not integers ×100) via live call or fixture inspection~~ **RESOLVED**: Dhan API docs confirm `float` type for OHLCV
 5. Pin LEAN engine to `v2.4.0.1` (not an arbitrary commit)
 
 ### Files Needing Amendment
@@ -415,8 +414,8 @@ Additionally, **symbol properties for India equity are unverified** — if LEAN 
 
 | Label | Count | Key Findings |
 |-------|-------|-------------|
-| VERIFIED | 14 | Market constant, timezone, trading hours, data format, CLI version, Docker requirements |
-| CORRECT BUT INCOMPLETE | 4 | Trading hours (missing pre/post market), engine version (conflated), route suitability (scaling wrong) |
-| INCORRECT | 3 | Price scaling (×100 vs ×10,000), timestamp convention (00:00), Dhan response type (integer vs float) |
-| UNRESOLVED | 4 | Symbol properties, INR currency, AddEquity without properties, Dhan float vs integer |
+| VERIFIED | 16 | Market constant, timezone, trading hours, data format, CLI version, Docker requirements, timestamp convention, Dhan float response |
+| CORRECT BUT INCOMPLETE | 3 | Trading hours (missing pre/post market), engine version (conflated), route suitability (scaling wrong) |
+| INCORRECT | 2 | Price scaling (×100 vs ×10,000), Dhan response type (integer vs float) |
+| UNRESOLVED | 2 | Symbol properties, AddEquity without properties |
 | ASSUMPTION | 2 | Lot size, minimum price variation |
