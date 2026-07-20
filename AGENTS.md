@@ -80,6 +80,60 @@ versions.
 
 ---
 
+## LEAN Source Precedence Rules
+
+1. LEAN engine source code (`github.com/QuantConnect/Lean`) takes precedence
+   over LEAN documentation for exact data format, market support, and
+   engine behaviour.
+2. LEAN CLI source code (`github.com/QuantConnect/lean-cli`) takes precedence
+   for command-line behaviour and Docker integration.
+3. LEAN documentation (`www.lean.io/docs`) is authoritative for concepts,
+   tutorials, and API reference.
+4. Do not assume LEAN supports a feature for Indian markets without
+   confirming it in the engine source code or documentation.
+5. Do not assume a data format works without testing it in the PoC.
+
+---
+
+## LEAN Version Pinning Rule
+
+All LEAN components must be pinned to specific versions before installation:
+
+- **LEAN engine**: Pin to a specific commit tag (e.g., `17932`) or Docker
+  image tag. Never use `latest`.
+- **LEAN CLI**: Pin to a specific PyPI version (e.g., `1.0.227`).
+- **Docker images**: Use specific tags, never `latest` in production.
+- **Python**: `>=3.10` (system-level, managed by Docker).
+
+Record all version pins in `docs/lean-version-matrix.md` before any
+installation.
+
+---
+
+## LEAN Execution Rules
+
+- Do not build a custom backtesting engine. LEAN (QuantConnect) is the
+  backtesting engine for this project.
+- Do not modify LEAN engine source code. Use LEAN as-is.
+- Do not write LEAN algorithms until the PoC confirms data format compatibility.
+- Do not install LEAN or Docker without explicit instruction.
+- Do not run LEAN backtests without confirming the data format first.
+
+---
+
+## LEAN Data Rules
+
+- LEAN's native equity data format is the primary integration route (Route A).
+- Dhan historical data must be converted to LEAN's CSV-in-ZIP format before
+  backtesting.
+- Dhan prices are returned as integers (price × 100); the converter must
+  divide by 100 to get actual prices.
+- Do not assume LEAN's India equity dataset is complete. Supply own data.
+- Do not assume mapping or factor files exist for a given ticker without
+  verifying.
+
+---
+
 ## DhanHQ SDK Version Targeting Rule
 
 Production implementation must target the stable DhanHQ SDK version selected by

@@ -120,7 +120,94 @@ as **documentation mismatch** or **unresolved** before using either value.
 
 ---
 
-## 8. What Is Not Yet Confirmed
+## 8. LEAN Engine Repository
+
+| Attribute | Value |
+|-----------|-------|
+| **Repository URL** | https://github.com/QuantConnect/Lean |
+| **License** | Apache-2.0 |
+| **Latest formal release** | `v2.4.0.1` (2024-08-08) |
+| **Latest commit tag** | `17932` (2026-07-17) |
+| **Versioning scheme** | Formal releases (v2.x.x.x) + rolling commit tags |
+| **Primary language** | C# 94.2%, Python 5.6% |
+| **Runtime** | .NET 10 SDK |
+| **Python integration** | Python.NET (`QuantConnect.pythonnet 2.0.64`) |
+| **Docker base image** | `quantconnect/lean:foundation` |
+| **Docker entry point** | `dotnet QuantConnect.Lean.Launcher.dll` |
+
+This is the **backtesting engine**. LEAN is a C# application that runs
+algorithms written in C# or Python (via Python.NET). Docker is required for
+local execution via `lean-cli`.
+
+---
+
+## 9. LEAN CLI (lean-cli)
+
+| Attribute | Value |
+|-----------|-------|
+| **Repository URL** | https://github.com/QuantConnect/lean-cli |
+| **PyPI package** | `lean` |
+| **Latest version** | `1.0.227` |
+| **Upload date** | 2026-06-26 |
+| **Python requirement** | `>=3.9` |
+| **License** | Apache-2.0 |
+| **Key dependency** | Docker (required for local backtesting) |
+
+This is the **command-line interface** for running LEAN backtests locally.
+It manages Docker containers, data downloads, and project scaffolding.
+
+---
+
+## 10. LEAN Documentation
+
+| Attribute | Value |
+|-----------|-------|
+| **Website** | https://www.lean.io |
+| **Docs URL** | https://www.lean.io/docs |
+| **Algorithm Framework** | https://www.lean.io/docs/algorithm-fundamentals/algorithm-framework |
+| **Supported Markets** | https://www.lean.io/docs/algorithm-fundamentals/market-hours/exchange-hours |
+| **Data Format** | https://www.lean.io/docs/algorithm-fundamentals/data/supported-data-sources |
+| **Custom Data** | https://www.lean.io/docs/algorithm-fundamentals/data/supported-data-sources/custom-data |
+| **API Reference** | https://www.lean.io/api-reference |
+| **Boot Camp** | https://www.lean.io/docs/bootcamp |
+
+---
+
+## 11. Authority Designations — Extended
+
+| Domain | Authoritative Source | Basis |
+|--------|---------------------|-------|
+| **API behaviour** (endpoints, fields, response shapes, rate limits) | `docs/dhan-docs-export.md` / https://docs.dhanhq.co | Official Dhan documentation |
+| **SDK method signatures** (exact params, defaults, validation logic) | `references/DhanHQ-py-v2.2.0/src/dhanhq/` | Stable source code — `CONFIRMED BY SOURCE CODE` |
+| **SDK runtime behaviour** (what the code actually does) | `references/DhanHQ-py-v2.2.0/src/dhanhq/` | Stable source code — `CONFIRMED BY SOURCE CODE` |
+| **Agent workflow patterns and usage examples** | `.agents/skills/dhanhq/` | Skill — subordinate to (1) and (2) |
+| **LEAN engine behaviour** (market support, data format, indicators) | https://github.com/QuantConnect/Lean | LEAN source code — `CONFIRMED BY SOURCE CODE` |
+| **LEAN CLI behaviour** (commands, Docker integration) | https://github.com/QuantConnect/lean-cli | LEAN CLI source code — `CONFIRMED BY SOURCE CODE` |
+| **LEAN documentation** (concepts, tutorials, API reference) | https://www.lean.io/docs | Official QuantConnect documentation |
+| **Project rules and implementation constraints** | `AGENTS.md` | Project-defined rules |
+| **Version difference classifications** | `docs/dhan-sdk-version-matrix.md` | This project's analysis |
+| **LEAN integration feasibility** | `docs/lean-foundation-audit.md` | This project's analysis |
+
+### Precedence Order
+
+1. Official Dhan documentation (`docs/dhan-docs-export.md` / docs.dhanhq.co)
+2. Stable SDK source code (`references/DhanHQ-py-v2.2.0/`)
+3. LEAN engine source code (`github.com/QuantConnect/Lean`)
+4. LEAN CLI source code (`github.com/QuantConnect/lean-cli`)
+5. Agent skill (`.agents/skills/dhanhq/`)
+6. Pre-release SDK (`references/DhanHQ-py/`) — inspection only
+7. LEAN documentation (`www.lean.io/docs`)
+
+### Conflict Resolution
+
+When any two sources contradict each other, classify the conflict per
+`AGENTS.md` evidence labels and record it in `docs/dhan-sdk-version-matrix.md`
+or `docs/lean-foundation-audit.md` as **documentation mismatch** or
+**unresolved** before using either value.
+
+---
+
+## 12. Verification Record
 
 The following items are classified **UNRESOLVED** pending a live API call or
 further documentation:
