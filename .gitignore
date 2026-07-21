@@ -85,7 +85,8 @@ reports/
 # ---------------------------------------------------------------------------
 # LEAN-specific & Local Runtime Exclusions
 # ---------------------------------------------------------------------------
-Lean/
+/Lean/
+!/patches/lean/
 DataLibraries/
 lean_config.json
 Launcher/
