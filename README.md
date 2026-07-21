@@ -20,12 +20,17 @@ environment preparation and reference hardening.
 
 ---
 
-## Verified LEAN Build & Setup Sequence
+## Prerequisites & LEAN Build Sequence
 
-To set up and compile the LEAN engine reproducibly on a local environment or server:
+### 1. Prerequisites
+- **Git CLI**
+- **.NET 10 SDK** (`targetFramework: net10.0` required by LEAN C# projects).
+  - Verify installed SDKs: `dotnet --list-sdks` (must show `10.x.x`).
+  - *Note:* Docker alone is **not** sufficient for local bootstrapping because the canonical `Dockerfile` copies host-compiled debug build output (`COPY ./Lean/Launcher/bin/Debug/ ...`) into the container.
 
+### 2. Setup Sequence
 ```powershell
-# 1. Bootstrap LEAN repository checkout & apply custom patches
+# 1. Bootstrap LEAN repository checkout, apply patches & compile C# binaries
 .\scripts\bootstrap-lean.ps1
 
 # 2. Prepare local runtime configuration from example template
@@ -45,6 +50,7 @@ docker build -t dhan-lean:pinned .
 - [x] Pre-release DhanHQ-py main reference checkout committed
 - [x] SDK version matrix completed
 - [x] Git baseline established & reproducible LEAN bootstrap created
+- [ ] Install .NET 10 SDK on host & verify LEAN bootstrap
 - [ ] LEAN installation verification (local minimal backtest PoC)
 - [ ] Dhan → LEAN data bridge (not yet designed)
 - [ ] Live credentials (not committed — never will be)
