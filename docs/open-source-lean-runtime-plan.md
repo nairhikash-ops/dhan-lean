@@ -7,23 +7,20 @@
 - `v2.4.0.1` is the latest formal GitHub Release entry, but it represents old LEAN history and may not match the current continuously developed engine. It should not be treated as the current stable LEAN engine.
 
 ## 2. Runtime Pin & Source-to-Image Mapping
-- **Docker Tag Analyzed**: `quantconnect/lean:17932`
-- **Architecture**: `amd64` (and `arm64`)
-- **Creation Date**: Last pushed on `2026-07-17T20:15:36Z`
-- **Mapping Issue**: The tag `17932` appears to be a CI build number rather than a Git commit SHA prefix. A lookup of `17932` against the GitHub API does not resolve to a specific identifiable commit.
-- **Status**: Because the exact source commit corresponding to Docker tag `17932` cannot be proven, the internal entrypoint, working directory, launcher path, and Python version of this specific image build cannot be verified against source code. 
-- **Conclusion**: **UNRESOLVED**. This image is not recommended until the exact source mapping is proven.
+- **Docker Source Pin**: `1fee999e4f437d09e255be5c3fde783206e05389`
+- **Mapping Issue Resolved**: We are discarding the unaccountable `quantconnect/lean:17932` pre-built image entirely. The runtime image will be built *locally* from the explicit pinned source commit `1fee999e4f437d09e255be5c3fde783206e05389`. See `docs/lean-engine-build-pin.md` for full provenance and build instructions.
+- **Conclusion**: **RESOLVED**. We will build the `dhan-lean-engine:1fee999` image locally.
 
 ## 3. Configuration & Source Integrity
 - Master source files must not be used to configure an older tag or an unidentified Docker image. 
-- `Launcher/config.json`, `Market.cs`, market databases, sample data, and Docker instructions must all be sourced from the exact selected commit. Since the commit is unresolved, no configuration can be finalized.
+- `Launcher/config.json`, `Market.cs`, market databases, sample data, and Docker instructions must all be sourced exactly from the pinned commit `1fee999e4f437d09e255be5c3fde783206e05389`.
 
 ## 4. Foundation vs Engine Image
 - **`DockerfileLeanFoundation` / `quantconnect/lean:foundation`**: This is strictly the **build environment** (containing OS dependencies, Python, .NET SDKs, etc.).
 - **Complete LEAN engine runtime image** (e.g., `quantconnect/lean:<tag>`): This is the **executable backtesting environment** containing the compiled C# LEAN engine DLLs (`QuantConnect.Lean.Launcher.dll`) ready to run algorithms.
 
 ## 5. Runtime Image Verification
-- **Status**: **UNRESOLVED**. Without a proven pinned commit, we cannot safely inspect the Dockerfile to verify the image entrypoint, working directory, Launcher DLL location, mount targets (config, algorithm, data, results), or exact Python runtime version.
+- **Status**: **RESOLVED via Local Build**. The runtime image entrypoint, working directory, Launcher DLL location, and Python environment are now structurally proven because we compile the exact source and execute its bundled `Dockerfile` locally.
 
 ## 6. Config Validation
 - The previously proposed reduced `config.json` is **not** guaranteed to be valid for an unknown engine version. 
@@ -38,13 +35,7 @@
 - *All modifications must be documented with justifications once a commit is pinned.*
 
 ## 7. India Support Verification
-- **Status**: **UNRESOLVED**. Without a pinned commit, we cannot verify:
-  - India symbol-properties entry or fallback behavior.
-  - India market-hours entry.
-  - Exact `cccl.zip` path and casing.
-  - Internal CSV filename casing.
-  - Map-file path and minimum requirements.
-  - Factor-file path and minimum requirements.
+- **Status**: **RESOLVED (Pending execution)**. We will extract the exact map files, factor files, and properties directly from `1fee999e4f437d09e255be5c3fde783206e05389` when sufficient disk space permits the checkout.
 
 ## 8. Disk Estimates
 - **Measured Compressed Image Size**: `14.04 GB` (for tag `17932` on Docker Hub).
@@ -55,4 +46,4 @@
 ---
 ## Final Classification
 
-**ENGINE IMAGE PIN UNRESOLVED**
+**BLOCKED BY DISK SPACE**

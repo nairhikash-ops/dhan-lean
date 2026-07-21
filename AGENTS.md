@@ -112,11 +112,17 @@ installation.
 
 ## LEAN Execution Rules
 
-- Do not build a custom backtesting engine. LEAN (QuantConnect) is the
-  backtesting engine for this project.
+- **Do not use LEAN CLI** for project initialization, backtesting, Docker orchestration, authentication, or configuration.
+- **Do not depend on QuantConnect accounts**, organizations, paid subscriptions, or API credentials.
+- **Use the direct open-source LEAN engine only** (built locally from source or compiled into a local Docker image).
+- **Pinned Commit Required**: The LEAN engine must be sourced exactly from commit `1fee999e4f437d09e255be5c3fde783206e05389`.
+- **No Unverified Images**: Do not use QuantConnect's pre-built Docker Hub engine tags. Runtime images must be locally built.
+- **No `latest` tags**: Never use the `latest` tag for engine builds.
+- **Provenance**: Image provenance must be recorded using OCI labels during build.
+- **Configuration Alignment**: Configuration (`config.json`) and market databases must exactly match the pinned engine commit.
+- Do not build a custom backtesting engine. LEAN (QuantConnect) is the backtesting engine for this project.
 - Do not modify LEAN engine source code. Use LEAN as-is.
 - Do not write LEAN algorithms until the PoC confirms data format compatibility.
-- Do not install LEAN or Docker without explicit instruction.
 - Do not run LEAN backtests without confirming the data format first.
 
 ---
