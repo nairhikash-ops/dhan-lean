@@ -83,8 +83,11 @@ output/
 reports/
 
 # ---------------------------------------------------------------------------
-# LEAN-specific (future — excluded from baseline)
+# LEAN-specific & Local Runtime Exclusions
 # ---------------------------------------------------------------------------
+Lean/
+DataLibraries/
+lean_config.json
 Launcher/
 QuantConnect.Lean*/
 Results/
@@ -136,11 +139,7 @@ $RECYCLE.BIN/
 
 # ---------------------------------------------------------------------------
 # Nested Git repositories — exclude .git metadata only
-# The source files inside these directories ARE committed as project files.
-# Do NOT convert to submodules without explicit approval.
 # ---------------------------------------------------------------------------
 references/DhanHQ-py/.git/
 references/DhanHQ-py-v2.2.0/.git/
-
-# Also guard against any other accidental nested git directories under references/
 references/**/.git/
