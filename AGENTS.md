@@ -1,5 +1,73 @@
 # dhan-lean — Project Agent Rules
 
+This file is the canonical instruction file for every coding agent working in this repository.
+
+## Shared project context and multi-agent coordination
+
+Before planning, modifying files, or running project commands, every agent must read:
+
+1. `AGENTS.md`
+2. `docs/PROJECT_BLUEPRINT.md`
+3. `docs/AGENT_HANDOFF.md`
+4. The current Git status
+5. The existing uncommitted diff
+
+Agents must not assume that previous chat history is available.
+
+Before every task, every agent must:
+
+- Inspect the existing implementation before proposing changes.
+- Understand the current architecture and execution flow.
+- Check Git status and preserve existing work.
+- Identify unrelated uncommitted changes and avoid touching them.
+- Follow the architecture documented in `docs/PROJECT_BLUEPRINT.md`.
+- Extend existing systems rather than creating duplicate implementations.
+- Avoid unnecessary rewrites.
+- Ask before destructive, irreversible, migration-heavy, or major architectural changes.
+- Never claim a test passed unless it was actually executed successfully.
+- Clearly distinguish verified facts from assumptions.
+- Never expose secrets or place credentials in documentation.
+
+During a task, every agent must:
+
+- Keep changes limited to the requested scope.
+- Avoid silently changing unrelated behaviour.
+- Re-read files immediately before editing when another agent may have changed them.
+- Stop and report unexpected repository changes or conflicts.
+- Preserve compatibility unless the task explicitly requires a breaking change.
+- Use existing project conventions, tools, and dependencies where practical.
+
+After every meaningful task, before declaring completion, every agent must:
+
+1. Review the final diff.
+2. Run relevant tests, validation, linting, or type checks.
+3. State which commands were actually run.
+4. Record failures honestly.
+5. Update `docs/AGENT_HANDOFF.md`.
+6. Update `docs/PROJECT_BLUEPRINT.md` only when the task changes durable project facts such as architecture, directory responsibilities, execution flow, database design, APIs or integrations, configuration, deployment, important dependencies, major project decisions, supported commands, or current system capabilities.
+
+Every completed task report must state:
+
+- What changed
+- Why it changed
+- Files changed
+- Validation performed
+- Test results
+- Failures or unresolved issues
+- Whether the blueprint was updated
+- Whether the handoff was updated
+- Current Git state
+
+Multi-agent rules:
+
+- Only one agent should modify the same working directory at a time.
+- Different agents may be used sequentially.
+- Before switching agents, the current agent must update the handoff.
+- Parallel development should use separate Git branches or Git worktrees.
+- Chat history is temporary; repository documentation is the source of truth.
+- Agents must never overwrite another agent’s uncommitted work.
+- Agents must not start duplicate long-running services without checking whether they are already running.
+
 ## Evidence-First, No-Assumption Approach
 
 All technical conclusions drawn in this project must be labeled with one of the
@@ -141,8 +209,6 @@ installation.
 - Do not assume mapping or factor files exist for a given ticker without
   verifying.
 
----
-
 ## DhanHQ SDK Version Targeting Rule
 
 Production implementation must target the stable DhanHQ SDK version selected by
@@ -158,3 +224,53 @@ the required feature is unavailable in stable and I explicitly approve the upgra
   `references/DhanHQ-py/`, the version matrix at
   `docs/dhan-sdk-version-matrix.md` must be consulted and the item must be
   classified as `compatible` or explicitly approved for upgrade.
+
+---
+
+## Server Operations Rules
+
+### Target server
+
+- Hostname: `swingserver`
+- Preferred SSH address: `100.121.84.8`
+- LAN fallback: `10.40.2.24`
+- SSH user: `hacker`
+- Authentication: SSH key only
+
+### Safety rules
+
+- Never format disks, repartition storage, purge packages, delete project data, or reset the operating system without explicit user approval.
+- Never reboot unless required and explicitly stated in the plan.
+- Before changing networking, SSH, firewall, Tailscale or Docker:
+  1. record the current state;
+  2. explain the proposed change;
+  3. preserve remote access;
+  4. verify access after the change.
+- Stop immediately when a command fails.
+- Do not conceal errors or report success without command output.
+- Do not use placeholder credentials or dummy authentication keys.
+- Never expose Docker through an unauthenticated TCP socket.
+- Prefer idempotent commands and official package repositories.
+
+### Process safety
+
+- Never terminate all `ssh`, `powershell`, terminal, or editor processes.
+- Terminate only a specifically identified process after recording its PID and explaining why termination is required.
+- Do not repeat the same failed transfer command indefinitely.
+- After two failed attempts, stop, report the error, and choose a simpler transfer method such as packaging files into one archive and using SCP.
+
+### Secrets
+
+- Never store SSH private keys, Tailscale auth keys, Dhan credentials, API tokens or passwords in Git, Markdown files, logs or Docker images.
+- Use environment files excluded by `.gitignore` or an approved secret management mechanism.
+
+### Evidence standard
+
+Use these labels:
+
+- `CONFIRMED BY TEST`: directly verified through command output.
+- `CONFIRMED BY SOURCE`: verified from repository configuration or code.
+- `PROPOSED`: not executed.
+- `UNVERIFIED`: evidence is incomplete.
+
+Do not describe a task as completed unless its required verification passed.
