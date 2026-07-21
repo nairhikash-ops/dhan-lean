@@ -30,13 +30,16 @@ environment preparation and reference hardening.
 
 ### 2. Setup Sequence
 ```powershell
-# 1. Bootstrap LEAN repository checkout, apply patches & compile C# binaries
+# Windows PowerShell:
 .\scripts\bootstrap-lean.ps1
 
-# 2. Prepare local runtime configuration from example template
-Copy-Item lean_config.example.json lean_config.json
+# Linux / Ubuntu:
+./scripts/bootstrap-lean.sh
 
-# 3. Build local LEAN Docker image
+# Prepare local runtime configuration from example template
+cp lean_config.example.json lean_config.json
+
+# Build local LEAN Docker image
 docker build -t dhan-lean:pinned .
 ```
 
