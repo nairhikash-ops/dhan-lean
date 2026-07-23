@@ -1,6 +1,6 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-22 13:48:00 +05:30
+- Updated date and time: 2026-07-23 18:30:00 +05:30
 - Updated by: Gemini via Antigravity
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
@@ -10,25 +10,28 @@
 
 ## Most recently completed task
 
-Completed Skopeo transfer, Docker import, and runtime verification of `quantconnect/lean:foundation` (`linux/amd64`):
-- **Skopeo Copy Success:** Sourced `docker://docker.io/quantconnect/lean:foundation` to `/srv/docker-transfer/quantconnect-lean-foundation-amd64-retry2.tar` (~26 GB tar archive).
-- **Archive Inspection:** `Architecture: amd64`, `Os: linux`, Digest `sha256:44f6c4262f8d9ff1f56ac51e8f3eb07af351b671fac5b0a3dc874887d7c7a86a`.
-- **Docker Import:** Successfully loaded into Docker engine (`ID=sha256:fcbaab453f1c5681737aeabc0556b38979c69218601a76694fd1cac3585ec758`, `SIZE=26971419149` [26.97 GB uncompressed Docker size], `ARCH=amd64`, `OS=linux`).
-- **Runtime Verification:** Confirmed `Microsoft.NETCore.App 10.0.1` and `Microsoft.AspNetCore.App 10.0.1` runtimes via `docker run --rm --entrypoint dotnet quantconnect/lean:foundation --list-runtimes`.
-- **Archive Cleanup:** Deleted temporary tar file `/srv/docker-transfer/quantconnect-lean-foundation-amd64-retry2.tar` (~26 GB) post-verification.
+Documentation-only architecture alignment for the Dhan 1-minute data pipeline:
+- **Pipeline Architecture Documented**: Updated `docs/dhan-to-lean-options.md` to define the 5-stage decoupled data pipeline (`Dhan API (intraday_minute_data) -> Permanent Raw 1m Archive -> Validation & Resumable State -> Higher Intervals Generated on Demand -> Temporary LEAN Exports -> Backtests & Results`).
+- **MVP Scope & Boundaries Recorded**: Documented NSE equity pilot, 1m OHLCV, configurable root `{STORAGE_ROOT}` (current server-local default `/srv/market-data`), rate limiting, chunking, interruption-safe resume, duplicate prevention, validation checks (negative volume invalid; zero volume retained/flagged per source), gap reporting for missing intervals, derived candles (5m/15m/30m/60m/daily), and explicit scope postponements.
+- **Alternative Routes Retained**: Preserved Route B (CustomData), Route C (IDataProvider), and Route D (QuantConnect Brokerage) as deferred alternatives in `docs/dhan-to-lean-options.md`.
+- **Blueprint Updated**: Updated `docs/PROJECT_BLUEPRINT.md` text flow, data ingestion workflow, storage model (`{STORAGE_ROOT}/raw`, `{STORAGE_ROOT}/state`, `{STORAGE_ROOT}/lean`), and architectural decisions.
+- **Skill Alignment**: Added rule 9 to `.agents/skills/dhanhq/SKILL.md` enforcing permanent raw archival under configured storage root before LEAN conversion.
 
 ## Repository state before this task
 
-- Git branch: feature/lean-foundation
-- Initial Skopeo download failed due to network unreachable / DNS error.
+- Branch: `feature/lean-foundation`
+- `swingserver` Always-On mode active and verified (`HandleLidSwitch=ignore`, sleep targets masked).
+- LEAN foundation source tree present and `quantconnect/lean:foundation` loaded into Docker daemon on `swingserver`.
+- Image `dhan-lean:poc` built and verified with crypto smoke backtest (`BasicTemplateCryptoAlgorithm` completed cleanly).
 
 ## Current repository state
 
-- Branch: feature/lean-foundation
-- Image `quantconnect/lean:foundation` (`linux/amd64`) fully loaded into Docker daemon on `swingserver`.
-- Temporary tar archive cleaned up.
-- Working tree had no other changes when this handoff was prepared.
+- Branch: `feature/lean-foundation`
+- `swingserver` Always-On mode remains active.
+- LEAN foundation engine and Docker image `dhan-lean:poc` verified.
+- Project documentation aligned with approved 5-stage Dhan 1-minute data pipeline architecture.
+- Working tree contains documentation and skill guidance updates only (no code, no dependencies, no secrets, no API calls).
 
 ## Recommended next task
 
-- Proceed with PoC verification of LEAN engine build or data integration.
+- Design module specification or plan unit tests for raw 1-minute ingestion and LEAN export bridge.

@@ -128,7 +128,7 @@ The repository is organized around a layered architecture:
 
 Text flow:
 
-Dhan API -> Dhan SDK reference and docs -> project conversion logic (planned) -> LEAN engine -> backtest/reporting output
+Dhan API -> Permanent Raw 1m Archive (/srv/market-data) -> Validation & Resumable State -> Derived Intervals / LEAN Converter -> Temporary LEAN Export (/srv/market-data/lean) -> LEAN Engine -> Backtest/Reporting Output
 
 ## 7. Core workflows
 
@@ -138,11 +138,11 @@ Not yet implemented as a dedicated application entry point. The repository is ce
 
 ### Data ingestion
 
-The repository documents Dhan historical-data retrieval via the SDK, but the actual ingestion bridge into LEAN is not yet implemented or verified.
+Dhan 1-minute historical data is downloaded via Python SDK (`dhanhq==2.2.0`) in chunked requests, validated (OHLC relationships, timestamp ordering, non-zero volume), and stored in a permanent raw unadjusted 1-minute archive rooted at `/srv/market-data/raw`. Download state tracking ensures interruption-safe, resumable ingestion and duplicate prevention. Higher intervals (5m, 15m, 30m, 60m, daily) are aggregated on demand from the 1m raw archive.
 
 ### Market-data handling
 
-The project documentation records Dhan historical-data response fields and the need to convert data to a LEAN-compatible format. The actual converter is not yet implemented.
+The raw 1-minute data is converted on demand into temporary LEAN-native CSV-in-ZIP format (`/srv/market-data/lean/Data/equity/india/minute/` and `daily/`) with deci-cent price scaling ($10,000\times$) for backtesting execution.
 
 ### Strategy execution
 
@@ -158,7 +158,7 @@ Dhan integration is documented and referenced, but runtime calls have not been e
 
 ### Database access
 
-No database-backed application is present in this repository snapshot.
+No database-backed application is present in this repository snapshot. Filesystem-based raw archives and state files on `/srv/market-data` manage data persistence.
 
 ### Reporting
 
@@ -172,9 +172,11 @@ The LEAN engine includes reporting and result-generation capabilities, but no pr
 
 ### Files used as persistent storage
 
-- lean_config.json for LEAN configuration
-- docs files for project state and implementation notes
-- The external Dhan API and LEAN engine are treated as external data dependencies rather than a local relational store
+- `{STORAGE_ROOT}/raw/` (default `/srv/market-data/raw/`) for permanent unadjusted 1-minute raw market data archives downloaded via `intraday_minute_data`. Path is configurable; `/srv/market-data` is the current server-local default, not a hardcoded requirement.
+- `{STORAGE_ROOT}/state/` (default `/srv/market-data/state/`) for resumable download tracking and gap reports.
+- `{STORAGE_ROOT}/lean/` (default `/srv/market-data/lean/`) for temporary, disposable LEAN-native exported CSV-in-ZIP datasets generated on demand.
+- lean_config.json for LEAN configuration.
+- docs files for project state and implementation notes.
 
 ### Migration systems
 
@@ -203,6 +205,7 @@ The LEAN engine includes reporting and result-generation capabilities, but no pr
 | Use Dhan API v2 as the authoritative data source | Project documentation and SDK references state this explicitly | README.md, AGENTS.md, docs/dhan-docs-export.md | 2026-07-17 / 2026-07-21 | Confirmed by repository documentation |
 | Target stable DhanHQ SDK 2.2.0 unless explicitly upgraded | Existing repository instructions require stable targeting | AGENTS.md, docs/dhan-sdk-version-matrix.md | 2026-07-17 | Confirmed by repository documentation |
 | Use LEAN as the backtesting engine | Project purpose and documentation define LEAN as the engine | README.md, AGENTS.md | 2026-07-17 / 2026-07-21 | Confirmed by repository documentation |
+| Store raw 1m data permanently before converting for LEAN | Enables multi-interval derived candles and decouples raw archive from LEAN export | docs/dhan-to-lean-options.md, docs/PROJECT_BLUEPRINT.md | 2026-07-23 | Confirmed by repository documentation |
 | Do not commit secrets or credentials | Security guidance is explicit in the repository | AGENTS.md, .gitignore | 2026-07-21 | Confirmed by repository files |
 
 ## 12. Development commands

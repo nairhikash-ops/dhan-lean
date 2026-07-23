@@ -91,7 +91,7 @@ YYYYMMDD 00:00,open,high,low,close,volume
 ### Bundled Data
 
 - One sample file exists: `Data/equity/india/daily/cccl.zip` (6.7 KB)
-- No full India equity dataset is bundled with LEAN
+- No full India dataset bundled with LEAN
 - No India equity symbol properties entries confirmed in the database
 - India market hours ARE defined in the market-hours database
 
@@ -109,16 +109,62 @@ YYYYMMDD 00:00,open,high,low,close,volume
 
 ---
 
+## Approved Architecture: 1-Minute Permanent Data Pipeline
+
+The project follows a 5-stage decoupled data architecture:
+
+```text
+Dhan API
+  └──> Stage 1: Permanent Raw Unadjusted 1-Minute Archive
+        └──> Stage 2: Validation & Resumable Download State
+              └──> Stage 3: Higher Intervals Generated on Demand (5m, 15m, 30m, 60m, Daily)
+                    └──> Stage 4: Temporary/Disposable LEAN-Native Exports
+                          └──> Stage 5: Backtests & Permanent Result Records
+```
+
+### Approved MVP Scope
+
+- **Data Source**: Dhan API v2 (`intraday_minute_data` primary for permanent raw 1-minute storage; `historical_daily_data` optional future validation).
+- **Asset Class / Market**: NSE Equity pilot only (limited to a controlled list of liquid symbols and date ranges).
+- **Primary Resolution**: 1-minute unadjusted OHLCV candles.
+- **Storage Management**:
+  - Configurable storage root path (environment variable / configuration driven).
+  - Default current storage root path: `/srv/market-data` (current server-local default; default, not a hardcoded system requirement).
+  - Storage abstraction supports future migration to larger internal storage without pipeline code changes.
+- **Download & Ingestion Resilience**:
+  - Request chunking aligned with Dhan rate limits (Quote: 1/s, Data: 5/s, 100k/day).
+  - Interruption-safe, resumable download state tracking per symbol/date chunk.
+  - Duplicate candle prevention and idempotent append/merge logic.
+- **Data Validation & Quality**:
+  - Timestamp ordering and validation.
+  - OHLC relationship checks ($High \ge Open, High \ge Low, High \ge Close, Low \le Open, Low \le Close$).
+  - Negative volume is invalid; zero volume may be retained or flagged according to source semantics.
+  - Missing intervals reported as gaps (not automatically treated as errors while calendar/special-session handling is postponed).
+- **Derived Candles & LEAN Export**:
+  - Derived 5m, 15m, 30m, 60m, and daily candles aggregated on demand from 1m raw archive.
+  - Temporary and disposable LEAN-native CSV-in-ZIP export (`Data/equity/india/minute/{symbol}.zip` and `daily/{symbol}.zip`) generated on demand into `{STORAGE_ROOT}/lean/` (default `/srv/market-data/lean/`).
+
+### Explicitly Postponed Scope
+
+The following features are intentionally out of scope for the initial MVP pipeline:
+- Symbol-change and corporate-action continuity tracking.
+- Stock splits, bonuses, rights issues, dividends, and price adjustments (raw prices used for initial pilot).
+- NSE holiday calendar integration and special trading sessions (e.g., Muhurat trading).
+- Delisted instruments and historical survivorship-bias corrections.
+- Derivatives data: Futures, Options, Open Interest (OI), tick-level feeds, and order-book depth.
+- Paper trading and live order execution.
+
+---
+
 ## Integration Routes
 
-### Route A: Convert Dhan Data → Native LEAN Equity Files
+### Route A: Convert Raw Archived Data → Native LEAN Equity Files (Approved Path)
 
-**Approach**: Download Dhan daily data, convert to LEAN CSV format, ZIP into
-the expected directory structure, and place under `Data/equity/india/daily/`.
+**Approach**: Download Dhan 1m data via `intraday_minute_data` to raw archive (`{STORAGE_ROOT}/raw/`, default `/srv/market-data/raw/`), validate and store, then export on demand to temporary/disposable LEAN CSV-in-ZIP format under `{STORAGE_ROOT}/lean/`.
 
 | Aspect | Assessment |
 |--------|-----------|
-| **Implementation effort** | Medium — one-time converter script |
+| **Implementation effort** | Medium — one-time converter script from raw archive |
 | **Backtest fidelity** | High — native LEAN data path, full engine support |
 | **Normal order simulation** | Full support (LEAN's equity models) |
 | **Indicator compatibility** | Full (all LEAN indicators work natively) |
@@ -127,14 +173,12 @@ the expected directory structure, and place under `Data/equity/india/daily/`.
 | **Live-transition complexity** | Low — same data format for live and backtest |
 | **Maintenance burden** | Low — converter runs once per data refresh |
 
-**Pros**: Fastest path to a working backtest; leverages all LEAN features.
-**Cons**: Must build mapping/factor files for survivorship-bias-free results;
-requires understanding LEAN's exact file format.
+**Pros**: Native LEAN data path; leverage raw archive for multiple interval backtests.
+**Cons**: Requires building export formatting logic; initial pilot relies on unadjusted raw prices.
 
-### Route B: LEAN Custom Data Classes
+### Route B: LEAN Custom Data Classes (Deferred Alternative)
 
-**Approach**: Write a Python `CustomData` class that reads Dhan data from
-local files and feeds it into LEAN as a custom data source.
+**Approach**: Write a Python `CustomData` class that reads Dhan data from local files and feeds it into LEAN as a custom data source.
 
 | Aspect | Assessment |
 |--------|-----------|
@@ -148,13 +192,11 @@ local files and feeds it into LEAN as a custom data source.
 | **Maintenance burden** | Medium — custom class must track LEAN API changes |
 
 **Pros**: More flexible; can include extra fields (e.g., open interest).
-**Cons**: More code; custom data has subtle differences from native equity
-data; harder to use LEAN's equity-specific features (margin, settlement).
+**Cons**: More code; custom data has subtle differences from native equity data.
 
-### Route C: Custom LEAN History/Data Provider
+### Route C: Custom LEAN History/Data Provider (Deferred Alternative)
 
-**Approach**: Implement `IDataProvider` or `IDataFeed` to serve Dhan data
-on-demand during backtesting.
+**Approach**: Implement `IDataProvider` or `IDataFeed` to serve Dhan data on-demand during backtesting.
 
 | Aspect | Assessment |
 |--------|-----------|
@@ -168,17 +210,15 @@ on-demand during backtesting.
 | **Maintenance burden** | High — LEAN internals change between versions |
 
 **Pros**: Most architecturally clean; data provider abstraction is LEAN-native.
-**Cons**: Significant implementation complexity; requires deep LEAN knowledge;
-fragile across LEAN version updates.
+**Cons**: Significant implementation complexity; fragile across LEAN version updates.
 
-### Route D: QuantConnect Brokerage for Live + Dhan for Historical
+### Route D: QuantConnect Brokerage for Live + Dhan for Historical (Deferred Alternative)
 
-**Approach**: Use QuantConnect's cloud or a supported brokerage for live
-trading, while using Dhan data only for historical backtesting via Route A.
+**Approach**: Use QuantConnect's cloud or a supported brokerage for live trading, while using Dhan data only for historical backtesting via Route A.
 
 | Aspect | Assessment |
 |--------|-----------|
-| **Implementation effort** | Low for backtest (Route A), high for live (brokerage migration) |
+| **Implementation effort** | Low for backtest (Route A), high for live |
 | **Backtest fidelity** | High (same as Route A) |
 | **Normal order simulation** | Full |
 | **Indicator compatibility** | Full |
@@ -194,35 +234,12 @@ trading, while using Dhan data only for historical backtesting via Route A.
 
 ## Recommendation
 
-### First Proof of Concept: Route A
+### First Proof of Concept: Route A from Permanent Raw Archive
 
 **Rationale**:
-- Lowest implementation effort for a working backtest
-- Native LEAN data path means no custom code to maintain
-- Full indicator and order simulation support
-- Can validate Dhan-to-LEAN compatibility quickly
-- Mapping/factor files are optional for the initial PoC (raw prices are fine)
-
-### Final Production Architecture: Route A (with mapping/factor files)
-
-**Rationale**:
-- Native LEAN format is the most battle-tested path
-- Mapping files enable survivorship-bias-free backtests
-- Factor files enable adjusted-price backtests
-- Same data format works for both backtest and live (via custom data provider
-  for live feed, or by downloading data periodically)
-- Lowest long-term maintenance burden
-
-### When Route B Might Be Preferred
-
-Route B (Custom Data) is preferred if:
-- Dhan provides data fields that don't fit LEAN's equity model (e.g., bid-ask
-  from Dhan's market feed)
-- The project needs to blend Dhan data with other proprietary data in the
-  same custom data stream
-- Intraday data from Dhan has non-standard timestamp conventions
-
-This decision should be deferred until the PoC validates Route A.
+- Lowest implementation effort for a working backtest.
+- Native LEAN data path means no custom engine code to maintain.
+- Preserves raw 1-minute data permanently on configured storage root (`{STORAGE_ROOT}/raw/`, default `/srv/market-data/raw/`), enabling on-demand generation of any higher interval (5m, 15m, 30m, 60m, daily) without re-fetching from Dhan. Temporary LEAN export files (`{STORAGE_ROOT}/lean/`) remain disposable and reproducible on demand.
 
 ---
 
@@ -230,7 +247,7 @@ This decision should be deferred until the PoC validates Route A.
 
 | Claim | Evidence |
 |-------|----------|
-| LEAN equity daily CSV format | CONFIRMED BY SOURCE CODE (LEAN `Data/` directory structure, `LeanData.cs`) |
+| LEAN equity daily/minute CSV format | CONFIRMED BY SOURCE CODE (LEAN `Data/` directory structure, `LeanData.cs`) |
 | Market `"india"` ID `11` | CONFIRMED BY SOURCE CODE (`Common/Market.cs`) |
 | NSE trading hours 09:15–15:30 | CONFIRMED BY SOURCE CODE (market-hours database) |
 | One sample file `cccl.zip` | OBSERVED IN TEST (GitHub `Data/equity/india/daily/`) |

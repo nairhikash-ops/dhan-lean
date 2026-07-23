@@ -73,6 +73,7 @@ dhan, dhan_context = get_client()
 6. Never use `CNC` or `MTF` for F&O, commodity, or currency segments.
 7. Never hardcode credentials in generated code.
 8. Ask for confirmation before `modify_order`, `cancel_order`, `kill_switch`, or any multi-leg live execution.
+9. **Permanent Raw Archival Requirement**: Always save unadjusted 1-minute historical data to the permanent raw archive under the configured storage root (`{STORAGE_ROOT}/raw/`, current server-local default `/srv/market-data/raw/`) before converting to LEAN formats or aggregating higher timeframe candles. Never bypass permanent raw storage with direct transient conversions.
 
 ## Access Checks Before Live Use
 
