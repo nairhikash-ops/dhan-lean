@@ -1,6 +1,6 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-23 18:56:00 +05:30
+- Updated date and time: 2026-07-23 20:12:00 +05:30
 - Updated by: Gemini via Antigravity
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
@@ -10,31 +10,33 @@
 
 ## Most recently completed task
 
-Safely removed host bundled LEAN sample datasets and created clean data-neutral container image (`dhan-lean:clean-final-test`):
-- **Host Sample Data Removed**: Removed 1,125 bundled price-history ZIP archives and sample India symbol placeholders (`3mindia.csv`, `cccl.csv`) from host `Lean/Data` (~218.28 MB reclaimed).
-- **Host Metadata Preserved**: Retained global LEAN metadata (`market-hours-database.json`, `security-database.csv`, `symbol-properties-database.csv`) and documentation `readme.md` files. Recreated empty India directory structure (`minute`, `daily`, `map_files`, `factor_files`).
-- **External Removal Manifest**: Removal manifest stored externally under `/srv/market-data/state/manifests/lean-sample-data-removal-1784812581.txt` (SHA-256: `593fbd3ab2c2015648b6dd1a001e2a30f317d8f8f196da0206ad0a1f678ef8bf`). No manifest copies remain inside Git repository.
-- **Dockerfile Updated**: Updated `Dockerfile` from broad `COPY ./Lean/Data/ /Lean/Data/` to explicit metadata-only copying (`market-hours`, `symbol-properties`) and `mkdir -p` for India export structure. Documented that temporary Dhan/LEAN exports will later mount under `/Lean/Data/equity/india`, and the complete `/Lean/Data` directory must not be replaced by a bind mount.
-- **Clean Image Built & Verified**: Built `dhan-lean:clean-final-test` (Image ID `9f2cf4259ba5`, size 27.1 GB). Confirmed container contains only `market-hours-database.json`, `security-database.csv`, and `symbol-properties-database.csv` under `/Lean/Data/` with 0 sample ZIP/CSV archives or sample symbol files (`3mindia.csv`, `cccl.csv`).
-- **Startup Validation**: Executed no-data, non-trading launcher initialization test (`QuantConnect.Lean.Launcher.dll --help`); system handlers initialized, set up cashbook, and completed clean shutdown safely.
-- **Image Baseline Preserved**: `quantconnect/lean:foundation`, `dhan-lean:poc`, `dhan-lean:clean-test`, and `dhan-lean:clean-final-test` currently remain installed. The old `dhan-lean:poc` image still contains the historical sample-data layer and has not been replaced or deleted.
-- **Working Tree Scope**: Current durable repository changes are `Dockerfile` and `docs/AGENT_HANDOFF.md` only.
+Implemented reusable Python foundation package (`dhan_lean`) for Dhan V2 historical 1-minute data pipeline:
+- **Verified Boundary Semantics**: Verified and implemented Dhan API V2 intraday endpoint boundary semantics (`fromDate` and `toDate` are both exclusive). Requesting desired minute interval `[start, end)` for 1-minute resolution produces `fromDate = start - 1 minute` and `toDate = end`.
+- **Core Modules Implemented**:
+  - `dhan_lean/data/models.py`: Immutable dataclasses (`RequestWindow`, `ValidationResult`).
+  - `dhan_lean/data/window.py`: Request-window calculation (`calculate_request_window`) enforcing minute-alignment, timezone-awareness (`Asia/Kolkata`), `start < end`, and exclusive bound offset.
+  - `dhan_lean/data/validator.py`: Response validator (`validate_dhan_response`) checking required arrays, length consistency, non-numeric/boolean rejections, timestamp monotonicity, duplicate tracking, OHLC relationship checks, non-positive price checks, volume anomaly checks, and missing gap detection without mutating response payload.
+  - `dhan_lean/data/storage.py`: Path builder (`build_raw_artifact_dir`) producing `{storage_root}/raw/dhan/{exchange_segment}/{instrument}/{symbol}/{security_id}/{resolution}/{YYYY}/{MM}/{DD}` with casing normalization and strict path traversal rejection. Artifact writer (`ArtifactWriter`) enforcing exclusive creation (`'xb'`), `0700`/`0600` permissions on POSIX, run ID format validation, credential detection rejection, and SHA-256 manifest generation.
+- **Unit Tests Passed**: 24 unit tests in `tests/` covering full-session window, short window, naive datetime rejection, non-minute-aligned rejection, invalid ordering, unsupported interval, unequal arrays, missing arrays, duplicate/descending timestamps, invalid OHLC, non-positive prices, negative/zero volumes, gap detection, safe path building, path traversal rejection, no-overwrite behavior, file modes on POSIX, and SHA-256 manifest correctness.
+- **Real-Fixture Validation**: Executed validator read-only against actual pilot responses on `swingserver` (`/srv/market-data/raw/dhan/...`):
+  - 374-bar HDFCBANK pilot response (`20260723T141506Z`): Passed cleanly (`is_valid=True`, 374 candles, `09:16:00 IST` to `15:29:00 IST`, `{60: 373}` deltas, 0 duplicates, 0 OHLC errors, 0 volume anomalies).
+  - 375-bar HDFCBANK boundary probe response (`20260723T142401Z`): Passed cleanly (`is_valid=True`, 375 candles, `09:15:00 IST` to `15:29:00 IST`, `{60: 374}` deltas).
+- **Security & Safety Standards**: Zero Dhan API calls executed during module development or testing. No credential files read or exposed. No raw Dhan response files committed to Git. Temporary test files on server under `/tmp` completely removed.
 
 ## Repository state before this task
 
 - Branch: `feature/lean-foundation`
-- `swingserver` Always-On mode active and verified (`HandleLidSwitch=ignore`, sleep targets masked).
-- LEAN foundation engine and Docker image `dhan-lean:poc` verified.
-- Project documentation aligned with approved 5-stage Dhan 1-minute data pipeline architecture (commit `4d68079`).
+- Clean Docker image `dhan-lean:clean-final-test` (ID `9f2cf4259ba5`) built and promoted to `dhan-lean:poc`.
+- Previous sample-data image preserved under `dhan-lean:sample-backup` (ID `a06e589c47ee`).
+- Commit `a1a0364` pushed to GitHub and synced to `/srv/dhan-lean`.
 
 ## Current repository state
 
 - Branch: `feature/lean-foundation`
-- `swingserver` Always-On mode remains active.
-- Host `Lean/Data` and Dockerfile updated to data-neutral state.
-- Clean image `dhan-lean:clean-final-test` built and verified on `swingserver`.
-- Working tree contains uncommitted `Dockerfile` and `docs/AGENT_HANDOFF.md` changes only.
+- `dhan_lean` Python foundation package and `tests/` implemented locally.
+- 24 unit tests passing locally and verified against real server raw market data fixtures.
+- Working tree contains uncommitted `dhan_lean/`, `tests/`, and `docs/AGENT_HANDOFF.md` changes.
 
 ## Recommended next task
 
-Promote the verified clean image and retire the sample-data image only after the repository changes are committed, pushed, and synced.
+Design and implement the Dhan raw 1-minute historical data downloader orchestrator module (`downloader.py`) with resumable state management and rate limiting.

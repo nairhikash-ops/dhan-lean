@@ -144,3 +144,8 @@ $RECYCLE.BIN/
 references/DhanHQ-py/.git/
 references/DhanHQ-py-v2.2.0/.git/
 references/**/.git/
+
+# Keep the Python source subpackage; generic data/ rules must not hide it.
+!dhan_lean/data/
+!dhan_lean/data/*.py
+!dhan_lean/data/*/*.py
