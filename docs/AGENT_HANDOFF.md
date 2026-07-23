@@ -1,6 +1,6 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-23 18:30:00 +05:30
+- Updated date and time: 2026-07-23 18:56:00 +05:30
 - Updated by: Gemini via Antigravity
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
@@ -10,28 +10,31 @@
 
 ## Most recently completed task
 
-Documentation-only architecture alignment for the Dhan 1-minute data pipeline:
-- **Pipeline Architecture Documented**: Updated `docs/dhan-to-lean-options.md` to define the 5-stage decoupled data pipeline (`Dhan API (intraday_minute_data) -> Permanent Raw 1m Archive -> Validation & Resumable State -> Higher Intervals Generated on Demand -> Temporary LEAN Exports -> Backtests & Results`).
-- **MVP Scope & Boundaries Recorded**: Documented NSE equity pilot, 1m OHLCV, configurable root `{STORAGE_ROOT}` (current server-local default `/srv/market-data`), rate limiting, chunking, interruption-safe resume, duplicate prevention, validation checks (negative volume invalid; zero volume retained/flagged per source), gap reporting for missing intervals, derived candles (5m/15m/30m/60m/daily), and explicit scope postponements.
-- **Alternative Routes Retained**: Preserved Route B (CustomData), Route C (IDataProvider), and Route D (QuantConnect Brokerage) as deferred alternatives in `docs/dhan-to-lean-options.md`.
-- **Blueprint Updated**: Updated `docs/PROJECT_BLUEPRINT.md` text flow, data ingestion workflow, storage model (`{STORAGE_ROOT}/raw`, `{STORAGE_ROOT}/state`, `{STORAGE_ROOT}/lean`), and architectural decisions.
-- **Skill Alignment**: Added rule 9 to `.agents/skills/dhanhq/SKILL.md` enforcing permanent raw archival under configured storage root before LEAN conversion.
+Safely removed host bundled LEAN sample datasets and created clean data-neutral container image (`dhan-lean:clean-final-test`):
+- **Host Sample Data Removed**: Removed 1,125 bundled price-history ZIP archives and sample India symbol placeholders (`3mindia.csv`, `cccl.csv`) from host `Lean/Data` (~218.28 MB reclaimed).
+- **Host Metadata Preserved**: Retained global LEAN metadata (`market-hours-database.json`, `security-database.csv`, `symbol-properties-database.csv`) and documentation `readme.md` files. Recreated empty India directory structure (`minute`, `daily`, `map_files`, `factor_files`).
+- **External Removal Manifest**: Removal manifest stored externally under `/srv/market-data/state/manifests/lean-sample-data-removal-1784812581.txt` (SHA-256: `593fbd3ab2c2015648b6dd1a001e2a30f317d8f8f196da0206ad0a1f678ef8bf`). No manifest copies remain inside Git repository.
+- **Dockerfile Updated**: Updated `Dockerfile` from broad `COPY ./Lean/Data/ /Lean/Data/` to explicit metadata-only copying (`market-hours`, `symbol-properties`) and `mkdir -p` for India export structure. Documented that temporary Dhan/LEAN exports will later mount under `/Lean/Data/equity/india`, and the complete `/Lean/Data` directory must not be replaced by a bind mount.
+- **Clean Image Built & Verified**: Built `dhan-lean:clean-final-test` (Image ID `9f2cf4259ba5`, size 27.1 GB). Confirmed container contains only `market-hours-database.json`, `security-database.csv`, and `symbol-properties-database.csv` under `/Lean/Data/` with 0 sample ZIP/CSV archives or sample symbol files (`3mindia.csv`, `cccl.csv`).
+- **Startup Validation**: Executed no-data, non-trading launcher initialization test (`QuantConnect.Lean.Launcher.dll --help`); system handlers initialized, set up cashbook, and completed clean shutdown safely.
+- **Image Baseline Preserved**: `quantconnect/lean:foundation`, `dhan-lean:poc`, `dhan-lean:clean-test`, and `dhan-lean:clean-final-test` currently remain installed. The old `dhan-lean:poc` image still contains the historical sample-data layer and has not been replaced or deleted.
+- **Working Tree Scope**: Current durable repository changes are `Dockerfile` and `docs/AGENT_HANDOFF.md` only.
 
 ## Repository state before this task
 
 - Branch: `feature/lean-foundation`
 - `swingserver` Always-On mode active and verified (`HandleLidSwitch=ignore`, sleep targets masked).
-- LEAN foundation source tree present and `quantconnect/lean:foundation` loaded into Docker daemon on `swingserver`.
-- Image `dhan-lean:poc` built and verified with crypto smoke backtest (`BasicTemplateCryptoAlgorithm` completed cleanly).
+- LEAN foundation engine and Docker image `dhan-lean:poc` verified.
+- Project documentation aligned with approved 5-stage Dhan 1-minute data pipeline architecture (commit `4d68079`).
 
 ## Current repository state
 
 - Branch: `feature/lean-foundation`
 - `swingserver` Always-On mode remains active.
-- LEAN foundation engine and Docker image `dhan-lean:poc` verified.
-- Project documentation aligned with approved 5-stage Dhan 1-minute data pipeline architecture.
-- Working tree contains documentation and skill guidance updates only (no code, no dependencies, no secrets, no API calls).
+- Host `Lean/Data` and Dockerfile updated to data-neutral state.
+- Clean image `dhan-lean:clean-final-test` built and verified on `swingserver`.
+- Working tree contains uncommitted `Dockerfile` and `docs/AGENT_HANDOFF.md` changes only.
 
 ## Recommended next task
 
-- Design module specification or plan unit tests for raw 1-minute ingestion and LEAN export bridge.
+Promote the verified clean image and retire the sample-data image only after the repository changes are committed, pushed, and synced.
