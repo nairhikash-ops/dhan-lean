@@ -1,8 +1,23 @@
 from datetime import date
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
 from typing import Optional, Mapping, Tuple, Any
+
+
+class RegistrationStatus(Enum):
+    CREATED = "CREATED"
+    EXISTING_MATCH = "EXISTING_MATCH"
+
+
+@dataclass(frozen=True)
+class RegistrationResult:
+    """Immutable result of a DownloadWorkItem registration call."""
+    status: RegistrationStatus
+    work_item_key: str
+    artifact_directory_rel: str
+
 
 
 @dataclass(frozen=True)

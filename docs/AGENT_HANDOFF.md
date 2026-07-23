@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-23 23:26:24 +05:30
-- Updated by: Offline explicit-date planner checkpoint
+- Updated date and time: 2026-07-24 00:23:30 +05:30
+- Updated by: Offline SQLite StateLedger work-item registration checkpoint
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -10,38 +10,31 @@
 
 ## Most recently completed task
 
-Implemented and verified the pure offline one-minute download planner checkpoint for Dhan historical downloads.
+Implemented and verified the first small offline SQLite `StateLedger` work-item registration checkpoint.
 
-### Completed offline planner checkpoint
+### Completed offline StateLedger registration checkpoint
 
-- **`DownloadWorkItem` dataclass** (`dhan_lean/data/models.py`): Immutable data structure representing a 1-minute intraday download work unit for a single session date.
-- **`plan_one_minute_downloads` function** (`dhan_lean/data/planner.py`): Pure explicit-date planner for 1-minute intraday downloads.
-- Planner accepts explicit caller-provided date objects only.
-- It rejects empty input, duplicates, `datetime` instances, strings, invalid security IDs (must be ASCII digits only), unsupported segment/instrument values (`exchange_segment != "NSE_EQ"`, `instrument != "EQUITY"`), non-uppercase symbols (`symbol != symbol.upper()`), and relative storage roots (`not storage_root.is_absolute()`).
-- Accepted session dates are sorted chronologically.
-- It performs zero network, credential, database, directory creation, download, retry, or execution behavior.
-- It creates one immutable one-minute work item per supplied session date.
-- It derives corrected request bounds through `calculate_request_window` for:
-  - desired `[09:15, 15:30)` IST session interval
-  - Dhan-exclusive request bounds `09:14:00` to `15:30:00`
-- It performs pure lexical output-path construction through `build_raw_artifact_path`.
-- Existing `build_raw_artifact_dir` and downloader behavior remain unchanged.
-- Deterministic work-item key format:
-  `dhan:nse_eq:equity:<SYMBOL>:<SECURITY_ID>:1m:<YYYY-MM-DD>`
-- Storage tests: **10/10 passing**.
-- Planner tests: **29/29 passing**.
-- Complete suite: **76/76 passing**.
+- **`StateLedger` class** (`dhan_lean/data/ledger.py`): Offline SQLite state ledger initialized with `PRAGMA foreign_keys = ON`, `PRAGMA journal_mode = WAL`, and explicit schema version `1`. Refuses unsupported schema versions (`version != 1`). Never deletes or recreates an existing database automatically.
+- **Tables created**: `work_items`, `attempts`, `retry_authorizations`.
+- **`RegistrationResult` model** (`dhan_lean/data/models.py`): Immutable dataclass with `RegistrationStatus` (`CREATED`, `EXISTING_MATCH`).
+- **`register_work_item(item: DownloadWorkItem)`**: Inserts a new item as `PLANNED`, storing all immutable planner metadata. Returns `EXISTING_MATCH` when identical, and raises metadata conflict error when the same key has different metadata.
+- **Pure lexical path handling**: Requires absolute `storage_root` and `output_directory`, rejects `..` components, calculates relative path `item.output_directory.relative_to(storage_root)`, stores `relative_path.as_posix()`, and rejects paths outside `storage_root`. Calls no `resolve`, `absolute`, `exists`, `stat`, `mkdir`, or any filesystem inspection during registration.
+- **StateLedger tests**: **8/8 passing** (including `test_registration_does_not_call_path_resolve`).
+- **Complete suite**: **84/84 passing**.
 
 ### Current scope boundary
 
-- Planning only.
-- No artifact inspection or reconciliation.
-- No persistent ledger.
-- No claim or lease handling.
-- No retry authorization.
-- No execution coordinator.
+- **Not implemented yet**:
+  - claims
+  - leases
+  - attempt completion
+  - retry authorization
+  - reconciliation
+  - download execution
+- Planning and registration only.
 - No live request authorized.
 - Broad downloads and repeated live calls still require separate human approval.
+
 
 ## Previously completed controlled live pilot
 
