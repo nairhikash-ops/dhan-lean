@@ -32,8 +32,9 @@ def _validate_path_component(component: str, name: str) -> str:
     return comp
 
 
-def build_raw_artifact_dir(
-    storage_root: Union[str, Path],
+def build_raw_artifact_path(
+    *,
+    storage_root: Path,
     provider: str,
     exchange_segment: str,
     instrument: str,
@@ -43,17 +44,11 @@ def build_raw_artifact_dir(
     session_date: date,
 ) -> Path:
     """
-    Constructs a deterministic raw artifact directory path.
-    Does NOT create the directory on disk.
-
-    Enforces casing:
-    - provider, exchange_segment, instrument: lowercase
-    - symbol: uppercase
+    Constructs a deterministic raw artifact directory path purely lexically.
+    Does NOT call resolve(), absolute(), exists(), or perform any filesystem access.
     """
     if type(session_date) is not date:
         raise TypeError(f"session_date must be an exact datetime.date instance (got {type(session_date).__name__})")
-
-    root_path = Path(storage_root).resolve()
 
     clean_provider = _validate_path_component(provider, "provider").lower()
     clean_exchange = _validate_path_component(exchange_segment, "exchange_segment").lower()
@@ -68,7 +63,39 @@ def build_raw_artifact_dir(
 
     rel_path = Path("raw") / clean_provider / clean_exchange / clean_instrument / clean_symbol / clean_sec_id / clean_resolution / year_str / month_str / day_str
 
-    target_dir = (root_path / rel_path).resolve()
+    target_dir = Path(storage_root) / rel_path
+    return target_dir
+
+
+def build_raw_artifact_dir(
+    storage_root: Union[str, Path],
+    provider: str,
+    exchange_segment: str,
+    instrument: str,
+    symbol: str,
+    security_id: str,
+    resolution: str,
+    session_date: date,
+) -> Path:
+    """
+    Constructs a deterministic raw artifact directory path and resolves it.
+    Does NOT create the directory on disk.
+
+    Enforces casing:
+    - provider, exchange_segment, instrument: lowercase
+    - symbol: uppercase
+    """
+    root_path = Path(storage_root).resolve()
+    target_dir = build_raw_artifact_path(
+        storage_root=root_path,
+        provider=provider,
+        exchange_segment=exchange_segment,
+        instrument=instrument,
+        symbol=symbol,
+        security_id=security_id,
+        resolution=resolution,
+        session_date=session_date,
+    ).resolve()
 
     try:
         target_dir.relative_to(root_path)

@@ -5,8 +5,10 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from dhan_lean.data.storage import build_raw_artifact_dir, ArtifactWriter
+from dhan_lean.data.storage import build_raw_artifact_dir, build_raw_artifact_path, ArtifactWriter
 from dhan_lean.data.models import ValidationResult
+from unittest.mock import patch
+
 
 
 class TestStorage(unittest.TestCase):
@@ -237,6 +239,46 @@ class TestStorage(unittest.TestCase):
 
             # File content was not altered
             self.assertEqual(existing_file.read_text(), "200\n")
+
+    def test_build_raw_artifact_path_is_lexical_and_does_not_resolve(self):
+        """Test build_raw_artifact_path constructs pure lexical path without calling resolve or creating directories."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            storage_root = Path(tmp_dir).resolve()
+
+            with patch.object(
+                Path,
+                "resolve",
+                side_effect=AssertionError(
+                    "Path.resolve() must not be called by the lexical builder"
+                ),
+            ):
+                path = build_raw_artifact_path(
+                    storage_root=storage_root,
+                    provider="DHAN",
+                    exchange_segment="NSE_EQ",
+                    instrument="EQUITY",
+                    symbol="hdfcbank",
+                    security_id="1333",
+                    resolution="1M",
+                    session_date=date(2026, 7, 22),
+                )
+
+            expected = (
+                storage_root
+                / "raw"
+                / "dhan"
+                / "nse_eq"
+                / "equity"
+                / "HDFCBANK"
+                / "1333"
+                / "1m"
+                / "2026"
+                / "07"
+                / "22"
+            )
+            self.assertEqual(path, expected)
+            self.assertFalse(path.exists())
+
 
 
 if __name__ == "__main__":

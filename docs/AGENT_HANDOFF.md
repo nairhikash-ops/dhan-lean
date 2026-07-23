@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-23 22:32:00 +05:30
-- Updated by: Controlled live-pilot documentation checkpoint
+- Updated date and time: 2026-07-23 23:26:24 +05:30
+- Updated by: Offline explicit-date planner checkpoint
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -9,6 +9,41 @@
 - Current branch: `feature/lean-foundation`
 
 ## Most recently completed task
+
+Implemented and verified the pure offline one-minute download planner checkpoint for Dhan historical downloads.
+
+### Completed offline planner checkpoint
+
+- **`DownloadWorkItem` dataclass** (`dhan_lean/data/models.py`): Immutable data structure representing a 1-minute intraday download work unit for a single session date.
+- **`plan_one_minute_downloads` function** (`dhan_lean/data/planner.py`): Pure explicit-date planner for 1-minute intraday downloads.
+- Planner accepts explicit caller-provided date objects only.
+- It rejects empty input, duplicates, `datetime` instances, strings, invalid security IDs (must be ASCII digits only), unsupported segment/instrument values (`exchange_segment != "NSE_EQ"`, `instrument != "EQUITY"`), non-uppercase symbols (`symbol != symbol.upper()`), and relative storage roots (`not storage_root.is_absolute()`).
+- Accepted session dates are sorted chronologically.
+- It performs zero network, credential, database, directory creation, download, retry, or execution behavior.
+- It creates one immutable one-minute work item per supplied session date.
+- It derives corrected request bounds through `calculate_request_window` for:
+  - desired `[09:15, 15:30)` IST session interval
+  - Dhan-exclusive request bounds `09:14:00` to `15:30:00`
+- It performs pure lexical output-path construction through `build_raw_artifact_path`.
+- Existing `build_raw_artifact_dir` and downloader behavior remain unchanged.
+- Deterministic work-item key format:
+  `dhan:nse_eq:equity:<SYMBOL>:<SECURITY_ID>:1m:<YYYY-MM-DD>`
+- Storage tests: **10/10 passing**.
+- Planner tests: **29/29 passing**.
+- Complete suite: **76/76 passing**.
+
+### Current scope boundary
+
+- Planning only.
+- No artifact inspection or reconciliation.
+- No persistent ledger.
+- No claim or lease handling.
+- No retry authorization.
+- No execution coordinator.
+- No live request authorized.
+- Broad downloads and repeated live calls still require separate human approval.
+
+## Previously completed controlled live pilot
 
 Executed a controlled live Dhan API pilot (single POST request) to verify the
 corrected one-minute download boundary behaviour for HDFCBANK on NSE_EQ.
@@ -93,14 +128,15 @@ The controlled live pilot independently confirmed the corrected 375-bar
 ## Current repository state
 
 - Branch: `feature/lean-foundation`
-- Foundation implementation baseline: `4707d0c` ("feat: add Dhan intraday downloader")
-- This documentation checkpoint is committed on top of that implementation baseline.
-- `dhan_lean/data/transport.py` and `dhan_lean/data/downloader.py` implemented,
-  committed, and verified.
-- **46 total unit tests passing** after adding direct storage helper coverage.
-- Storage tests now cover immutable artifact-path construction and collision
-  preflight while retaining validation-report typo regression coverage.
-- No production code changes were required for this test checkpoint.
+- Pre-planner synchronized baseline: `e3bc06945507ee8d914c976dc36fe347c1685c3d`
+  (`test: expand artifact storage coverage`)
+- The offline planner checkpoint adds `DownloadWorkItem`,
+  `plan_one_minute_downloads`, and pure lexical raw-artifact path construction.
+- **76 total unit tests passing locally**:
+  - storage: 10
+  - planner: 29
+  - complete suite: 76
+- This checkpoint changes no downloader, transport, validator, or request-execution behavior.
 
 ## LEAN and Docker state
 
@@ -137,13 +173,9 @@ performed as part of a documentation checkpoint or engineering task:
 
 ## Recommended next task
 
-The bulk-backfill recommendation from the previous handoff has been superseded.
-The likely next engineering task is:
-
-1. **Resumable one-symbol/multi-day download planner** — a controlled orchestrator
-   that downloads one trading day at a time for a single symbol, with idempotent
-   preflight checks before each request.
-2. **Persistent state ledger** — tracks which symbol/date combinations have been
-   downloaded, validated, and stored, enabling safe resumption after interruption.
-
-These tasks must be designed and approved before any live API calls are made.
+1. Correct and approve the offline SQLite ledger design.
+2. Implement only the ledger schema, state transitions, atomic claims, attempt
+   history, and one-shot retry authorization after approval.
+3. Do not implement artifact reconciliation or an execution coordinator in the
+   same checkpoint.
+4. No live API request is authorized.

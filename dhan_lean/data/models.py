@@ -1,3 +1,4 @@
+from datetime import date
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -76,3 +77,17 @@ class DownloadResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "artifact_paths", MappingProxyType(dict(self.artifact_paths)))
+
+
+@dataclass(frozen=True)
+class DownloadWorkItem:
+    """Immutable 1-minute intraday download work unit for a single session date."""
+    symbol: str
+    security_id: str
+    exchange_segment: str
+    instrument: str
+    bar_size: str
+    session_date: date
+    request_window: RequestWindow
+    output_directory: Path
+    work_item_key: str
