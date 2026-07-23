@@ -97,10 +97,10 @@ The controlled live pilot independently confirmed the corrected 375-bar
 - This documentation checkpoint is committed on top of that implementation baseline.
 - `dhan_lean/data/transport.py` and `dhan_lean/data/downloader.py` implemented,
   committed, and verified.
-- **45 total unit tests passing** (locally and on swingserver).
-- Working tree: `docs/AGENT_HANDOFF.md` updated (this file); `tests/test_storage.py`
-  contains a pre-existing uncommitted test improvement (unrelated to the pilot).
-- No other uncommitted source changes.
+- **46 total unit tests passing** after adding direct storage helper coverage.
+- Storage tests now cover immutable artifact-path construction and collision
+  preflight while retaining validation-report typo regression coverage.
+- No production code changes were required for this test checkpoint.
 
 ## LEAN and Docker state
 

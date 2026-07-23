@@ -198,6 +198,46 @@ class TestStorage(unittest.TestCase):
             self.assertIn("TIMESTAMPS_STRICTLY_INCREASING=True", val_text)
             self.assertNotIn("TIMESTAMPS_STRRICTLY_INCREASING", val_text)
 
+    def test_build_artifact_paths_and_ensure_targets(self):
+        """Test build_artifact_paths returns 6 immutable targets and ensure_targets_available handles preflight checks."""
+        writer = ArtifactWriter()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = Path(tmp_dir) / "test_paths"
+            run_id = "20260723T141506Z"
+
+            paths = writer.build_artifact_paths(out_dir, run_id)
+            self.assertEqual(len(paths), 6)
+            self.assertIn("request", paths)
+            self.assertIn("response", paths)
+            self.assertIn("headers", paths)
+            self.assertIn("status", paths)
+            self.assertIn("validation", paths)
+            self.assertIn("sha256", paths)
+
+            # Mapping is immutable
+            with self.assertRaises(TypeError):
+                paths["request"] = Path("/tmp/other")
+
+            # Directory is NOT created by build_artifact_paths
+            self.assertFalse(out_dir.exists())
+
+            # ensure_targets_available succeeds when no files exist
+            available_paths = writer.ensure_targets_available(out_dir, run_id)
+            self.assertEqual(len(available_paths), 6)
+
+            # Create output dir and one file
+            out_dir.mkdir(parents=True, exist_ok=True)
+            existing_file = paths["status"]
+            existing_file.write_text("200\n")
+
+            # ensure_targets_available fails with FileExistsError when target exists
+            with self.assertRaises(FileExistsError) as ctx:
+                writer.ensure_targets_available(out_dir, run_id)
+            self.assertIn(str(existing_file), str(ctx.exception))
+
+            # File content was not altered
+            self.assertEqual(existing_file.read_text(), "200\n")
+
 
 if __name__ == "__main__":
     unittest.main()
