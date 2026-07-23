@@ -3,7 +3,8 @@ import re
 import hashlib
 from datetime import date, datetime
 from pathlib import Path
-from typing import Union, Any
+from types import MappingProxyType
+from typing import Union, Any, Mapping
 
 from dhan_lean.data.models import ValidationResult
 
@@ -105,6 +106,44 @@ class ArtifactWriter:
             if cred.encode('utf-8') in lower_content:
                 raise ValueError(f"Credential key '{cred}' detected in {name} payload.")
 
+    def build_artifact_paths(
+        self,
+        output_dir: Path,
+        run_id: str,
+    ) -> Mapping[str, Path]:
+        """
+        Validates run_id and returns deterministic mapping of target artifact paths.
+        Does NOT create directories or files.
+        """
+        self._verify_valid_run_id(run_id)
+        out_path = Path(output_dir)
+
+        paths = {
+            "request": out_path / f"request-{run_id}.json",
+            "response": out_path / f"response-{run_id}.json",
+            "headers": out_path / f"response-headers-{run_id}.txt",
+            "status": out_path / f"http-status-{run_id}.txt",
+            "validation": out_path / f"validation-{run_id}.txt",
+            "sha256": out_path / f"sha256-{run_id}.txt",
+        }
+        return MappingProxyType(paths)
+
+    def ensure_targets_available(
+        self,
+        output_dir: Path,
+        run_id: str,
+    ) -> Mapping[str, Path]:
+        """
+        Checks if any target artifact path already exists.
+        Raises FileExistsError if any target file exists.
+        Returns immutable mapping of available target paths.
+        """
+        targets = self.build_artifact_paths(output_dir, run_id)
+        for target_path in targets.values():
+            if target_path.exists():
+                raise FileExistsError(f"Target artifact file already exists: {target_path}")
+        return targets
+
     def write_pilot_artifacts(
         self,
         output_dir: Path,
@@ -114,13 +153,11 @@ class ArtifactWriter:
         headers_bytes: bytes,
         http_status: int,
         validation_result: ValidationResult,
-    ) -> dict[str, Path]:
+    ) -> Mapping[str, Path]:
         """
         Writes the 6 standard pilot artifacts exclusively.
         Raises FileExistsError if any target file already exists.
         """
-        self._verify_valid_run_id(run_id)
-
         if not isinstance(http_status, int) or isinstance(http_status, bool):
             raise ValueError(f"http_status must be an integer, got {type(http_status).__name__}")
 
@@ -130,18 +167,14 @@ class ArtifactWriter:
         self._verify_no_credentials(request_bytes, "request_bytes")
         self._verify_no_credentials(headers_bytes, "headers_bytes")
 
-        # Define file targets
-        req_path = output_dir / f"request-{run_id}.json"
-        resp_path = output_dir / f"response-{run_id}.json"
-        hdr_path = output_dir / f"response-headers-{run_id}.txt"
-        status_path = output_dir / f"http-status-{run_id}.txt"
-        val_path = output_dir / f"validation-{run_id}.txt"
-        sha_path = output_dir / f"sha256-{run_id}.txt"
-
-        targets = [req_path, resp_path, hdr_path, status_path, val_path, sha_path]
-        for t in targets:
-            if t.exists():
-                raise FileExistsError(f"Target artifact file already exists: {t}")
+        # Centralized preflight check
+        target_map = self.ensure_targets_available(output_dir, run_id)
+        req_path = target_map["request"]
+        resp_path = target_map["response"]
+        hdr_path = target_map["headers"]
+        status_path = target_map["status"]
+        val_path = target_map["validation"]
+        sha_path = target_map["sha256"]
 
         # Ensure directory exists with 0700 permissions
         if not output_dir.exists():
@@ -221,11 +254,4 @@ class ArtifactWriter:
                         pass
             raise e
 
-        return {
-            "request": req_path,
-            "response": resp_path,
-            "headers": hdr_path,
-            "status": status_path,
-            "validation": val_path,
-            "sha256": sha_path,
-        }
+        return target_map

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from types import MappingProxyType
 from typing import Optional, Mapping, Tuple, Any
 
@@ -41,3 +42,37 @@ class ValidationResult:
         object.__setattr__(self, "errors", tuple(self.errors))
         object.__setattr__(self, "array_lengths", MappingProxyType(dict(self.array_lengths)))
         object.__setattr__(self, "timestamp_delta_distribution", MappingProxyType(dict(self.timestamp_delta_distribution)))
+
+
+@dataclass(frozen=True)
+class HttpResponse:
+    """Immutable HTTP response container."""
+    status_code: int
+    body: bytes
+    headers: bytes
+
+    def __post_init__(self) -> None:
+        if type(self.status_code) is not int or isinstance(self.status_code, bool):
+            raise TypeError(f"status_code must be an integer, got {type(self.status_code).__name__}")
+        if not (100 <= self.status_code <= 599):
+            raise ValueError(f"status_code must be between 100 and 599 inclusive, got {self.status_code}")
+        if not isinstance(self.body, bytes):
+            raise TypeError(f"body must be bytes, got {type(self.body).__name__}")
+        if not isinstance(self.headers, bytes):
+            raise TypeError(f"headers must be bytes, got {type(self.headers).__name__}")
+
+
+@dataclass(frozen=True)
+class DownloadResult:
+    """Structured, immutable downloader execution result."""
+    run_id: str
+    output_directory: Path
+    status_code: int
+    artifact_paths: Mapping[str, Path]
+    validation_result: Optional[ValidationResult]
+    error_code: Optional[str]
+    error_message: Optional[str]
+    success: bool
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "artifact_paths", MappingProxyType(dict(self.artifact_paths)))

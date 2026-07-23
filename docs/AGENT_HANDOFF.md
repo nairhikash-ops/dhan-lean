@@ -1,6 +1,6 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-23 20:12:00 +05:30
+- Updated date and time: 2026-07-23 20:45:00 +05:30
 - Updated by: Gemini via Antigravity
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
@@ -10,33 +10,29 @@
 
 ## Most recently completed task
 
-Implemented reusable Python foundation package (`dhan_lean`) for Dhan V2 historical 1-minute data pipeline:
-- **Verified Boundary Semantics**: Verified and implemented Dhan API V2 intraday endpoint boundary semantics (`fromDate` and `toDate` are both exclusive). Requesting desired minute interval `[start, end)` for 1-minute resolution produces `fromDate = start - 1 minute` and `toDate = end`.
-- **Core Modules Implemented**:
-  - `dhan_lean/data/models.py`: Immutable dataclasses (`RequestWindow`, `ValidationResult`).
-  - `dhan_lean/data/window.py`: Request-window calculation (`calculate_request_window`) enforcing minute-alignment, timezone-awareness (`Asia/Kolkata`), `start < end`, and exclusive bound offset.
-  - `dhan_lean/data/validator.py`: Response validator (`validate_dhan_response`) checking required arrays, length consistency, non-numeric/boolean rejections, timestamp monotonicity, duplicate tracking, OHLC relationship checks, non-positive price checks, volume anomaly checks, and missing gap detection without mutating response payload.
-  - `dhan_lean/data/storage.py`: Path builder (`build_raw_artifact_dir`) producing `{storage_root}/raw/dhan/{exchange_segment}/{instrument}/{symbol}/{security_id}/{resolution}/{YYYY}/{MM}/{DD}` with casing normalization and strict path traversal rejection. Artifact writer (`ArtifactWriter`) enforcing exclusive creation (`'xb'`), `0700`/`0600` permissions on POSIX, run ID format validation, credential detection rejection, and SHA-256 manifest generation.
-- **Unit Tests Passed**: 24 unit tests in `tests/` covering full-session window, short window, naive datetime rejection, non-minute-aligned rejection, invalid ordering, unsupported interval, unequal arrays, missing arrays, duplicate/descending timestamps, invalid OHLC, non-positive prices, negative/zero volumes, gap detection, safe path building, path traversal rejection, no-overwrite behavior, file modes on POSIX, and SHA-256 manifest correctness.
-- **Real-Fixture Validation**: Executed validator read-only against actual pilot responses on `swingserver` (`/srv/market-data/raw/dhan/...`):
-  - 374-bar HDFCBANK pilot response (`20260723T141506Z`): Passed cleanly (`is_valid=True`, 374 candles, `09:16:00 IST` to `15:29:00 IST`, `{60: 373}` deltas, 0 duplicates, 0 OHLC errors, 0 volume anomalies).
-  - 375-bar HDFCBANK boundary probe response (`20260723T142401Z`): Passed cleanly (`is_valid=True`, 375 candles, `09:15:00 IST` to `15:29:00 IST`, `{60: 374}` deltas).
-- **Security & Safety Standards**: Zero Dhan API calls executed during module development or testing. No credential files read or exposed. No raw Dhan response files committed to Git. Temporary test files on server under `/tmp` completely removed.
+Implemented reusable Dhan HTTP transport (`transport.py`) and downloader orchestrator (`downloader.py`) modules:
+- **HTTP Transport Layer**:
+  - `dhan_lean/data/transport.py`: Standard-library HTTP transport (`DhanHttpTransport`) built on `urllib.request`. Executes exactly 1 request per call with 0 auto-retries. Enforces HTTPS scheme, non-empty hostname, credential rejection in URLs, and non-empty token validation. Redacts tokens in `repr()`, `str()`, and `TransportError` messages (`raise TransportError("Dhan HTTP transport failed.") from None`). Serializes response headers deterministically (sorted by key/value, CRLF line endings). Captures HTTP errors (e.g. 400, 401, 500) into `HttpResponse` objects without unhandled exceptions.
+- **Downloader Orchestrator**:
+  - `dhan_lean/data/downloader.py`: Downloader (`DhanIntradayDownloader`) and payload builder (`build_intraday_payload`). Enforces strict NSE cash equity payload structure (`securityId`, `exchangeSegment="NSE_EQ"`, `instrument="EQUITY"`, `interval="1"`, `oi`, `fromDate`, `toDate`) without `sort_keys`. Enforces single-day IST range (`start_time.date() == end_time.date()`) and derives session date automatically. Writes exact untouched request and response bytes, headers, HTTP status, validation result, and SHA-256 manifest to 6 immutable artifacts.
+  - Safe Dhan error extraction (`_extract_safe_dhan_error`) parses scalar `errorCode`/`errorMessage` fields without exposing token or request headers.
+  - `generate_utc_run_id`: Produces `YYYYMMDDTHHMMSSZ` format with injectable clock support.
+- **Unit Test Suite**: 44 Python unit tests in `tests/` covering transport request construction, token redaction, timeout/endpoint validation, deterministic header serialization, payload key ordering, digit-only security IDs, single-day IST range enforcement, non-200 / malformed JSON / Dhan error handling, network error wrapping, and artifact immutability.
+- **Offline Server Fixture Verification**: SCP'd package to `/tmp/pkg_transport_test` on `swingserver` and exercised transport and downloader offline against real 374-bar and 375-bar HDFCBANK pilot fixtures. Verified 100% test pass (44/44 tests) and clean artifact generation with 0 live network calls, 0 credential file accesses, and 0 token leaks. Temporary test files under `/tmp` removed afterward.
 
 ## Repository state before this task
 
 - Branch: `feature/lean-foundation`
-- Clean Docker image `dhan-lean:clean-final-test` (ID `9f2cf4259ba5`) built and promoted to `dhan-lean:poc`.
-- Previous sample-data image preserved under `dhan-lean:sample-backup` (ID `a06e589c47ee`).
-- Commit `a1a0364` pushed to GitHub and synced to `/srv/dhan-lean`.
+- Commit `26e8101` ("feat: add Dhan minute-data foundation") committed, pushed, and synced to `/srv/dhan-lean`.
+- 28 data foundation unit tests passing.
 
 ## Current repository state
 
 - Branch: `feature/lean-foundation`
-- `dhan_lean` Python foundation package and `tests/` implemented locally.
-- 24 unit tests passing locally and verified against real server raw market data fixtures.
+- `dhan_lean/data/transport.py` and `dhan_lean/data/downloader.py` implemented and verified.
+- 44 total unit tests passing locally and on `swingserver`.
 - Working tree contains uncommitted `dhan_lean/`, `tests/`, and `docs/AGENT_HANDOFF.md` changes.
 
 ## Recommended next task
 
-Design and implement the Dhan raw 1-minute historical data downloader orchestrator module (`downloader.py`) with resumable state management and rate limiting.
+Create batch downloading orchestrator / ticker queue manager for bulk NSE cash equity historical backfills.
