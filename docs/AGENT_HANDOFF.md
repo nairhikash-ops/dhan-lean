@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-24 11:18:00 +05:30
-- Updated by: Successful controlled live executor retest
+- Updated date and time: 2026-07-24 11:30:00 +05:30
+- Updated by: Offline Sequential Batch Coordinator milestone
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -10,43 +10,37 @@
 
 ## Most recently completed task
 
-Performed a successful controlled live executor retest on swingserver.
+Implemented and verified the offline sequential batch coordinator module (`dhan_lean/data/coordinator.py`).
 
-### Successful controlled live executor retest
+### Offline Sequential Batch Coordinator Milestone
 
-- **Proven Milestone**: The single-work-item historical download pipeline is now proven end-to-end with a real Dhan request.
-- Date tested: 2026-07-24
-- Symbol: HDFCBANK
-- Security ID: 1333
-- Historical session: 2026-07-22
-- Resolution: 1m
-- Exactly one Dhan API request executed
-- HTTP status: 200 OK
-- Execution state: `SUCCEEDED`
-- Work-item state: `SUCCEEDED`
-- Attempt state: `SUCCEEDED`
-- Attempt count: 1
-- Retry authorizations: 0
-- Candle count: 375
-- First timestamp: 2026-07-22 09:15 IST
-- Last timestamp: 2026-07-22 15:29 IST
-- Timestamps strictly increasing and unique
-- All candles within the approved session
-- Token absent from artifacts, ledger, and logs
-- Run ID: `retest_20260724T054518Z`
-- Artifact stored under `/srv/market-data/raw/executor-retest/retest_20260724T054518Z/`
-- Ledger stored at `/tmp/ledger_retest_20260724T054518Z.db`
-- Repository remained clean at `5c91a24623ce92cb5e4ec6403abbeaa58700fe9f`
+- **Proven Milestone**: The first offline sequential batch coordinator is implemented and verified. It processes an explicitly supplied bounded list safely, one item at a time.
+- Explicit ordered work-item keys supplied by the caller
+- Strictly sequential single-item execution
+- Configurable `max_items` limit enforcement
+- Injectable inter-request delay (`delay_seconds`, `sleep_fn`)
+- Delay occurs **only** between actual downloader executions (no delay before first request, no delay after last item, no delay for blocked items)
+- Duplicate and malformed keys rejected in preflight before execution
+- Blocked items do not call the downloader
+- Correct `stop_on_failure` behavior for `FAILED` and `INTERRUPTED` statuses
+- Unexpected exceptions produce a safe early stop (`UNEXPECTED_EXCEPTION`)
+- Immutable `BatchSummary` dataclass with ordered processed results and counts
+- No automatic ledger discovery
+- No retries or retry authorizations
+- No concurrency, scheduling, credentials, or live API calls
+- Coordinator tests: **13/13 passing**
+- Full test suite: **146/146 passing**
 
 ### Current scope boundary
 
 - **Still unimplemented**:
+  - automatic ledger discovery / scanning
   - stale-lease review
   - retry authorization
   - approved retries
   - reconciliation
-  - batch or scheduled execution
-- Planning, registration, execution orchestration, private token-management service, and single-item execution proof only.
+  - scheduled background execution
+- Planning, registration, single-item execution, private token-management service, and offline sequential batch coordination only.
 - No live request authorized without explicit approval.
 
 
