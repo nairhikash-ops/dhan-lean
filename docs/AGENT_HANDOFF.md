@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-24 09:15:00 +05:30
-- Updated by: Controlled live executor pilot & timezone fix checkpoint
+- Updated date and time: 2026-07-24 09:46:00 +05:30
+- Updated by: Private Dhan Token-Management Service checkpoint
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -10,37 +10,48 @@
 
 ## Most recently completed task
 
-Executed controlled live executor pilot on swingserver and implemented executor timezone handling fix.
+Implemented a hardened, minimal private Dhan token-management service (`dhan_lean.services.token_admin` & `dhan_lean.security.token_store`).
 
-### Completed controlled live executor pilot & timezone fix checkpoint
+### Completed private token-management service checkpoint
 
-- The first controlled live executor test reached Dhan exactly once.
-- Dhan returned HTTP 400 with `DH-906 Invalid Token`.
-- No candles were downloaded.
-- No token or authorization header was written to artifacts or logs.
-- Two earlier pilot attempts failed before HTTP access.
-- The live test exposed naive timestamp parsing in the executor.
-- The executor now:
-  - preserves offset-aware timestamps
-  - interprets naive stored timestamps as Asia/Kolkata
-  - always passes timezone-aware datetimes to the downloader
-- Executor tests: **9/9 passing**.
-- Ledger tests: **22/22 passing**.
-- Full suite: **107/107 passing**.
+- A private Dhan token-management service is implemented but not deployed.
+- It uses only Python standard library.
+- Default binding is `127.0.0.1`.
+- `0.0.0.0` is rejected.
+- Explicit Tailscale IP binding (`100.121.84.8`) is supported.
+- The service refuses to run as root.
+- Authentication uses versioned salted `hashlib.scrypt` configuration (`scrypt$<n>$<r>$<p>$<salt>$<key>`).
+- Plain SHA-256 and malformed password configurations are rejected.
+- Sessions are random, expiring, `HttpOnly`, and `SameSite=Strict`.
+- Logout requires authenticated `POST /logout` with valid CSRF.
+- Token updates require authentication and CSRF.
+- Request bodies are size-limited (`<= 10,000` bytes).
+- Rate limiting is enabled.
+- Tokens, passwords, hashes, cookies, and CSRF values are never logged or returned.
+- The credential file:
+  - rejects symlinks
+  - preserves unrelated variables and comments
+  - collapses duplicate token entries
+  - uses same-directory temporary write
+  - flushes and fsyncs before atomic replacement
+  - ends with mode `0600`
+- The application never invokes `sudo` or changes ownership.
+- Deployment will require a one-time administrator permission setup.
+- Token store tests: **10/10 passing**.
+- Token admin tests: **16/16 passing**.
+- Full suite: **133/133 passing**.
 
-### Current scope boundary & blocker
+### Current scope boundary
 
-- **Current Blocker**:
-  - The Dhan access token must be replaced before another live test.
 - **Still unimplemented**:
-  - stale-lease review
-  - retry authorization
-  - approved retries
-  - reconciliation
-  - batch or scheduled execution
-- Planning, registration, initial claim, completion, single-item execution orchestration, and timezone parsing fix only.
+  - deployment to swingserver
+  - systemd service
+  - HTTPS
+  - automatic token generation or renewal
+  - Dhan token validation
+  - another controlled live download test
+- Planning, registration, execution orchestration, and private token management service only.
 - No live request authorized without explicit approval.
-- Broad downloads and repeated live calls still require separate human approval.
 
 
 
@@ -175,4 +186,4 @@ performed as part of a documentation checkpoint or engineering task:
 
 ## Recommended next task
 
-Commit and synchronize the executor timezone fix. Do not run another live API test until a valid token is installed and separately approved.
+Commit and synchronize the private token-management service before deployment.
