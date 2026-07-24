@@ -11,8 +11,12 @@ from dhan_lean.data.models import (
     DownloadWorkItem,
     RequestWindow,
     RegistrationStatus,
-    RegistrationResult
+    RegistrationResult,
+    ClaimStatus,
+    ClaimResult,
+    WorkItemAttempt
 )
+
 
 
 class TestStateLedger(unittest.TestCase):
@@ -168,6 +172,127 @@ class TestStateLedger(unittest.TestCase):
         with unittest.mock.patch.object(Path, "resolve", side_effect=raise_resolve):
             res = ledger.register_work_item(self.sample_item)
             self.assertEqual(res.status, RegistrationStatus.CREATED)
+
+    def test_successful_initial_claim(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+
+        res = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+        self.assertIsInstance(res, ClaimResult)
+        self.assertEqual(res.status, ClaimStatus.CLAIMED)
+        self.assertIsNotNone(res.attempt)
+        self.assertEqual(res.attempt.attempt_number, 1)
+        self.assertEqual(res.attempt.claim_owner, "worker-1")
+        self.assertEqual(res.attempt.lease_duration_seconds, 900)
+        self.assertTrue(res.attempt.run_id.endswith("Z"))
+        self.assertIsNone(res.attempt.completed_at)
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            row = conn.execute("SELECT state FROM work_items WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()
+            self.assertEqual(row[0], "CLAIMED")
+            att_row = conn.execute("SELECT attempt_number, run_id, claim_owner, state FROM attempts WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()
+            self.assertIsNotNone(att_row)
+            self.assertEqual(att_row[0], 1)
+            self.assertEqual(att_row[1], res.attempt.run_id)
+            self.assertEqual(att_row[2], "worker-1")
+            self.assertEqual(att_row[3], "CLAIMED")
+        finally:
+            conn.close()
+
+    def test_claim_missing_work_item(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        res = ledger.claim_work_item("non_existent_key", claim_owner="worker-1", lease_duration_seconds=900)
+        self.assertEqual(res.status, ClaimStatus.WORK_ITEM_NOT_FOUND)
+        self.assertIsNone(res.attempt)
+
+    def test_duplicate_claim_blocked(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+        res1 = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+        self.assertEqual(res1.status, ClaimStatus.CLAIMED)
+
+        res2 = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-2", lease_duration_seconds=900)
+        self.assertEqual(res2.status, ClaimStatus.ALREADY_CLAIMED)
+        self.assertIsNone(res2.attempt)
+
+    def test_transaction_rollback_on_injected_failure(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+
+        orig_connect = ledger._connect
+
+        class FaultyConnection:
+            def __init__(self, real_conn):
+                self._real_conn = real_conn
+
+            def execute(self, sql, *args):
+                if "UPDATE work_items" in sql:
+                    raise RuntimeError("Injected update failure")
+                return self._real_conn.execute(sql, *args)
+
+            def close(self):
+                self._real_conn.close()
+
+        def faulty_connect():
+            return FaultyConnection(orig_connect())
+
+        with unittest.mock.patch.object(ledger, "_connect", side_effect=faulty_connect):
+            with self.assertRaises(RuntimeError) as ctx:
+                ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+            self.assertIn("Injected update failure", str(ctx.exception))
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            row = conn.execute("SELECT state FROM work_items WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()
+            self.assertEqual(row[0], "PLANNED")
+            attempts = conn.execute("SELECT COUNT(*) FROM attempts WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()[0]
+            self.assertEqual(attempts, 0)
+        finally:
+            conn.close()
+
+
+    def test_invalid_claim_parameters_rejected(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+
+        with self.assertRaises(ValueError):
+            ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="", lease_duration_seconds=900)
+        with self.assertRaises(ValueError):
+            ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker", lease_duration_seconds=0)
+        with self.assertRaises(ValueError):
+            ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker", lease_duration_seconds=-10)
+        with self.assertRaises(ValueError):
+            ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker", lease_duration_seconds=True)
+
+    def test_claim_update_is_conditioned_on_planned_state(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+
+        conn = sqlite3.connect(self.db_path, autocommit=True)
+        conn.execute("UPDATE work_items SET state = 'SUCCEEDED' WHERE work_item_key = ?;", (self.sample_item.work_item_key,))
+        conn.close()
+
+        res = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+        self.assertEqual(res.status, ClaimStatus.ALREADY_SUCCEEDED)
+
+    def test_blocked_claim_does_not_create_additional_attempt(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+
+        res1 = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+        self.assertEqual(res1.status, ClaimStatus.CLAIMED)
+
+        res2 = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-2", lease_duration_seconds=900)
+        self.assertEqual(res2.status, ClaimStatus.ALREADY_CLAIMED)
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM attempts WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()[0]
+            self.assertEqual(count, 1)
+        finally:
+            conn.close()
+
 
 
 if __name__ == "__main__":

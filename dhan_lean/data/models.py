@@ -11,12 +11,44 @@ class RegistrationStatus(Enum):
     EXISTING_MATCH = "EXISTING_MATCH"
 
 
+class ClaimStatus(Enum):
+    CLAIMED = "CLAIMED"
+    WORK_ITEM_NOT_FOUND = "WORK_ITEM_NOT_FOUND"
+    ALREADY_CLAIMED = "ALREADY_CLAIMED"
+    ALREADY_SUCCEEDED = "ALREADY_SUCCEEDED"
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+
+
 @dataclass(frozen=True)
 class RegistrationResult:
     """Immutable result of a DownloadWorkItem registration call."""
     status: RegistrationStatus
     work_item_key: str
     artifact_directory_rel: str
+
+
+@dataclass(frozen=True)
+class WorkItemAttempt:
+    """Immutable representation of a download attempt record."""
+    attempt_id: str
+    work_item_key: str
+    attempt_number: int
+    run_id: str
+    state: str
+    claim_owner: str
+    claimed_at: str
+    lease_duration_seconds: int
+    lease_expires_at: str
+    completed_at: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ClaimResult:
+    """Immutable result of an initial work item claim call."""
+    status: ClaimStatus
+    work_item_key: str
+    attempt: Optional[WorkItemAttempt] = None
+
 
 
 

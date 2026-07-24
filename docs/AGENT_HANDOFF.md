@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-24 00:23:30 +05:30
-- Updated by: Offline SQLite StateLedger work-item registration checkpoint
+- Updated date and time: 2026-07-24 00:33:30 +05:30
+- Updated by: Offline SQLite StateLedger initial-claim checkpoint
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -10,30 +10,30 @@
 
 ## Most recently completed task
 
-Implemented and verified the first small offline SQLite `StateLedger` work-item registration checkpoint.
+Implemented and verified atomic initial claiming for registered `PLANNED` work items in `StateLedger`.
 
-### Completed offline StateLedger registration checkpoint
+### Completed offline StateLedger initial-claim checkpoint
 
-- **`StateLedger` class** (`dhan_lean/data/ledger.py`): Offline SQLite state ledger initialized with `PRAGMA foreign_keys = ON`, `PRAGMA journal_mode = WAL`, and explicit schema version `1`. Refuses unsupported schema versions (`version != 1`). Never deletes or recreates an existing database automatically.
-- **Tables created**: `work_items`, `attempts`, `retry_authorizations`.
-- **`RegistrationResult` model** (`dhan_lean/data/models.py`): Immutable dataclass with `RegistrationStatus` (`CREATED`, `EXISTING_MATCH`).
-- **`register_work_item(item: DownloadWorkItem)`**: Inserts a new item as `PLANNED`, storing all immutable planner metadata. Returns `EXISTING_MATCH` when identical, and raises metadata conflict error when the same key has different metadata.
-- **Pure lexical path handling**: Requires absolute `storage_root` and `output_directory`, rejects `..` components, calculates relative path `item.output_directory.relative_to(storage_root)`, stores `relative_path.as_posix()`, and rejects paths outside `storage_root`. Calls no `resolve`, `absolute`, `exists`, `stat`, `mkdir`, or any filesystem inspection during registration.
-- **StateLedger tests**: **8/8 passing** (including `test_registration_does_not_call_path_resolve`).
-- **Complete suite**: **84/84 passing**.
+- Atomic initial claims are implemented.
+- Claims require `claim_owner` and explicit positive lease duration.
+- Attempt 1 stores attempt ID, run ID, owner, claim time and lease expiry.
+- Attempt insertion and `PLANNED` → `CLAIMED` transition are atomic.
+- Conditional update failure rolls everything back.
+- Ledger tests: **15/15 passing**.
+- Full suite: **91/91 passing**.
 
 ### Current scope boundary
 
-- **Not implemented yet**:
-  - claims
-  - leases
-  - attempt completion
+- **Still unimplemented**:
+  - success/failure completion
+  - stale-lease review
   - retry authorization
-  - reconciliation
   - download execution
-- Planning and registration only.
+  - reconciliation
+- Planning, registration, and initial claim only.
 - No live request authorized.
 - Broad downloads and repeated live calls still require separate human approval.
+
 
 
 ## Previously completed controlled live pilot
@@ -166,9 +166,4 @@ performed as part of a documentation checkpoint or engineering task:
 
 ## Recommended next task
 
-1. Correct and approve the offline SQLite ledger design.
-2. Implement only the ledger schema, state transitions, atomic claims, attempt
-   history, and one-shot retry authorization after approval.
-3. Do not implement artifact reconciliation or an execution coordinator in the
-   same checkpoint.
-4. No live API request is authorized.
+Implement attempt completion transitions only.

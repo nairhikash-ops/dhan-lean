@@ -1,9 +1,19 @@
 import sqlite3
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Union, Tuple, Optional
 
-from dhan_lean.data.models import DownloadWorkItem, RegistrationStatus, RegistrationResult
+
+from dhan_lean.data.models import (
+    DownloadWorkItem,
+    RegistrationStatus,
+    RegistrationResult,
+    ClaimStatus,
+    ClaimResult,
+    WorkItemAttempt
+)
+
 
 
 CREATE_WORK_ITEMS_TABLE = """
@@ -192,6 +202,105 @@ class StateLedger:
                 work_item_key=item.work_item_key,
                 artifact_directory_rel=rel_posix
             )
+        except Exception:
+            try:
+                conn.execute("ROLLBACK;")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+
+    def claim_work_item(
+        self,
+        work_item_key: str,
+        claim_owner: str,
+        lease_duration_seconds: int
+    ) -> ClaimResult:
+        if not claim_owner or not isinstance(claim_owner, str) or not claim_owner.strip():
+            raise ValueError("claim_owner must be a non-empty string.")
+        if type(lease_duration_seconds) is not int or isinstance(lease_duration_seconds, bool) or lease_duration_seconds <= 0:
+            raise ValueError(f"lease_duration_seconds must be a positive integer, got {lease_duration_seconds}.")
+
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE;")
+            cursor = conn.execute(
+                "SELECT state FROM work_items WHERE work_item_key = ?;",
+                (work_item_key,)
+            )
+            row = cursor.fetchone()
+
+            if row is None:
+                conn.execute("COMMIT;")
+                return ClaimResult(status=ClaimStatus.WORK_ITEM_NOT_FOUND, work_item_key=work_item_key)
+
+            current_state = row[0]
+            if current_state == "CLAIMED":
+                conn.execute("COMMIT;")
+                return ClaimResult(status=ClaimStatus.ALREADY_CLAIMED, work_item_key=work_item_key)
+            elif current_state == "SUCCEEDED":
+                conn.execute("COMMIT;")
+                return ClaimResult(status=ClaimStatus.ALREADY_SUCCEEDED, work_item_key=work_item_key)
+            elif current_state == "REVIEW_REQUIRED":
+                conn.execute("COMMIT;")
+                return ClaimResult(status=ClaimStatus.REVIEW_REQUIRED, work_item_key=work_item_key)
+            elif current_state != "PLANNED":
+                conn.execute("ROLLBACK;")
+                raise ValueError(f"Unexpected work item state: {current_state}")
+
+            now_dt = datetime.now(timezone.utc)
+            now_iso = now_dt.isoformat()
+            lease_expires_iso = (now_dt + timedelta(seconds=lease_duration_seconds)).isoformat()
+            run_id_str = now_dt.strftime("%Y%m%dT%H%M%SZ")
+            attempt_id_str = str(uuid.uuid4())
+            attempt_number = 1
+
+            conn.execute(
+                """
+                INSERT INTO attempts (
+                    attempt_id, work_item_key, attempt_number, run_id, state,
+                    claim_owner, claimed_at, lease_duration_seconds, lease_expires_at,
+                    completed_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'CLAIMED', ?, ?, ?, ?, NULL, ?, ?);
+                """,
+                (
+                    attempt_id_str, work_item_key, attempt_number, run_id_str,
+                    claim_owner, now_iso, lease_duration_seconds, lease_expires_iso,
+                    now_iso, now_iso
+                )
+            )
+
+            update_cursor = conn.execute(
+                """
+                UPDATE work_items
+                SET state = 'CLAIMED', updated_at = ?
+                WHERE work_item_key = ? AND state = 'PLANNED';
+                """,
+                (now_iso, work_item_key)
+            )
+
+            if update_cursor.rowcount != 1:
+                conn.execute("ROLLBACK;")
+                raise RuntimeError(f"State transition conflict while claiming work item: {work_item_key}")
+
+            conn.execute("COMMIT;")
+
+
+            attempt = WorkItemAttempt(
+                attempt_id=attempt_id_str,
+                work_item_key=work_item_key,
+                attempt_number=attempt_number,
+                run_id=run_id_str,
+                state="CLAIMED",
+                claim_owner=claim_owner,
+                claimed_at=now_iso,
+                lease_duration_seconds=lease_duration_seconds,
+                lease_expires_at=lease_expires_iso,
+                completed_at=None
+            )
+
+            return ClaimResult(status=ClaimStatus.CLAIMED, work_item_key=work_item_key, attempt=attempt)
         except Exception:
             try:
                 conn.execute("ROLLBACK;")
