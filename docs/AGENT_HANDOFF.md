@@ -34,6 +34,7 @@ Implemented and verified the offline sequential batch coordinator module (`dhan_
 ### Current scope boundary
 
 - **Still unimplemented**:
+  - persistent request-budget guard across process restarts
   - automatic ledger discovery / scanning
   - stale-lease review
   - retry authorization
@@ -41,7 +42,32 @@ Implemented and verified the offline sequential batch coordinator module (`dhan_
   - reconciliation
   - scheduled background execution
 - Planning, registration, single-item execution, private token-management service, and offline sequential batch coordination only.
-- No live request authorized without explicit approval.
+- All live batch testing remains suspended until an offline-only persistent request-budget guard is implemented and reviewed.
+
+
+## Controlled Two-Item Live Batch Pilot Execution (2026-07-24)
+
+Executed an end-to-end controlled live batch pilot on `swingserver` testing the batch coordinator (`execute_batch`).
+
+### Technical Verification Outcomes
+- **Coordinator Pipeline**: Proven end-to-end (`execute_batch` → `execute_single_work_item` → `DhanIntradayDownloader` → `validate_dhan_response` → `ArtifactWriter` → `StateLedger`).
+- **Final Run ID**: `20260724T061448Z`
+- **Work Items**: `HDFCBANK:1333:1m:2026-07-21` and `TCS:11536:1m:2026-07-21` on `NSE_EQ`.
+- **Candle Verification**: Exactly 375 candles per item (09:15:00 to 15:29:00 IST), 200 HTTP status, strictly increasing timestamps within date.
+- **Inter-Request Delay**: Injected 2.23-second delay observed between requests.
+- **Token Security**: `TOKEN_LEAK_FOUND=false` across all ledger records, artifacts, and output.
+- **Git State**: Clean at `24b017374497fa89c6dcc62feaba5d35a24f85c0`.
+
+### Execution-Control Audit Finding
+- **Status**: Technical pipeline succeeded, but overall pilot failed execution-control requirements; pilot must NOT be described as compliant or fully successful.
+- **Audited Runs**: 11 total pilot run directories created under `/srv/market-data/raw/batch-pilot/`.
+- **Live Requests Executed**: 7 runs executed live requests for a total of 14 Dhan API POST requests across script invocations.
+- **HTTP Statuses & Outcomes**: All 14 requests returned HTTP 200 and succeeded.
+- **Retries & Authorizations**: Exactly zero retries and zero retry authorizations occurred.
+- **Token Security**: No token leak was found (`TOKEN_LEAK_FOUND=false`).
+- **Evidence State**: All evidence is preserved on `swingserver`.
+- **Current Action**: All live batch testing is suspended.
+- **Next Required Milestone**: An offline-tested persistent request-budget guard so approved allowances survive process restarts.
 
 
 
