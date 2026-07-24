@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 from dhan_lean.data.ledger import StateLedger
@@ -56,6 +57,10 @@ def execute_single_work_item(
 
     start_dt = datetime.fromisoformat(work_item.request_window.desired_start_ist)
     end_dt = datetime.fromisoformat(work_item.request_window.desired_end_ist)
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
 
     try:
         download_result = downloader.download_intraday(

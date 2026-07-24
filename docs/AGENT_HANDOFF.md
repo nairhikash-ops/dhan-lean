@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-24 08:58:00 +05:30
-- Updated by: Offline single-work-item execution checkpoint
+- Updated date and time: 2026-07-24 09:15:00 +05:30
+- Updated by: Controlled live executor pilot & timezone fix checkpoint
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -10,43 +10,36 @@
 
 ## Most recently completed task
 
-Connected `StateLedger` to `DhanIntradayDownloader` through `execute_single_work_item`.
+Executed controlled live executor pilot on swingserver and implemented executor timezone handling fix.
 
-### Completed single-work-item execution checkpoint
+### Completed controlled live executor pilot & timezone fix checkpoint
 
-- The ledger is now connected to the existing `DhanIntradayDownloader` through a single-work-item executor (`execute_single_work_item`).
-- The executor:
-  - claims one registered work item
-  - loads its stored details
-  - calls the downloader exactly once
-  - marks the attempt and work item based on the result
-- Successful download:
-  - attempt → `SUCCEEDED`
-  - work item → `SUCCEEDED`
-- Normal downloader failure or ordinary exception:
-  - attempt → `FAILED`
-  - work item → `REVIEW_REQUIRED`
-- `KeyboardInterrupt` or `SystemExit`:
-  - attempt → `INTERRUPTED`
-  - work item → `REVIEW_REQUIRED`
-- Duplicate or blocked claims do not call the downloader.
-- No retry, batch execution, scheduler, stale-lease handling, reconciliation, or live API test was added.
-- Tests use a fake downloader and temporary storage.
-- Executor tests: **7/7 passing**.
+- The first controlled live executor test reached Dhan exactly once.
+- Dhan returned HTTP 400 with `DH-906 Invalid Token`.
+- No candles were downloaded.
+- No token or authorization header was written to artifacts or logs.
+- Two earlier pilot attempts failed before HTTP access.
+- The live test exposed naive timestamp parsing in the executor.
+- The executor now:
+  - preserves offset-aware timestamps
+  - interprets naive stored timestamps as Asia/Kolkata
+  - always passes timezone-aware datetimes to the downloader
+- Executor tests: **9/9 passing**.
 - Ledger tests: **22/22 passing**.
-- Full suite: **105/105 passing**.
+- Full suite: **107/107 passing**.
 
-### Current scope boundary
+### Current scope boundary & blocker
 
+- **Current Blocker**:
+  - The Dhan access token must be replaced before another live test.
 - **Still unimplemented**:
-  - a controlled live execution test through the new executor
   - stale-lease review
   - retry authorization
   - approved retries
   - reconciliation
   - batch or scheduled execution
-- Planning, registration, initial claim, completion, and single-item execution orchestration only.
-- No live request authorized.
+- Planning, registration, initial claim, completion, single-item execution orchestration, and timezone parsing fix only.
+- No live request authorized without explicit approval.
 - Broad downloads and repeated live calls still require separate human approval.
 
 
@@ -182,4 +175,4 @@ performed as part of a documentation checkpoint or engineering task:
 
 ## Recommended next task
 
-Perform one separately approved controlled live execution through the new executor.
+Commit and synchronize the executor timezone fix. Do not run another live API test until a valid token is installed and separately approved.

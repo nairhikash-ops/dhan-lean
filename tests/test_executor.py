@@ -186,6 +186,62 @@ class TestExecutor(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_executor_parses_naive_stored_timestamps_as_ist(self) -> None:
+        naive_window = RequestWindow(
+            from_date="2026-07-22 09:14:00",
+            to_date="2026-07-22 15:30:00",
+            desired_start_ist="2026-07-22 09:15:00",
+            desired_end_ist="2026-07-22 15:30:00"
+        )
+        naive_item = DownloadWorkItem(
+            symbol="HDFCBANK",
+            security_id="1333",
+            exchange_segment="NSE_EQ",
+            instrument="EQUITY",
+            bar_size="1m",
+            session_date=date(2026, 7, 22),
+            request_window=naive_window,
+            output_directory=self.sample_dir,
+            work_item_key="dhan:nse_eq:equity:HDFCBANK:1333:1m:2026-07-22:naive"
+        )
+        self.ledger.register_work_item(naive_item)
+        downloader = self._make_mock_downloader(success=True)
+
+        res = execute_single_work_item(self.ledger, downloader, naive_item.work_item_key)
+        self.assertEqual(res.status, "SUCCEEDED")
+        self.assertEqual(downloader.download_intraday.call_count, 1)
+
+        call_kwargs = downloader.download_intraday.call_args.kwargs
+        start_time = call_kwargs["start_time"]
+        end_time = call_kwargs["end_time"]
+
+        self.assertIsNotNone(start_time.tzinfo)
+        self.assertIsNotNone(end_time.tzinfo)
+        self.assertEqual(start_time.tzinfo, IST)
+        self.assertEqual(end_time.tzinfo, IST)
+        self.assertEqual(start_time.hour, 9)
+        self.assertEqual(start_time.minute, 15)
+        self.assertEqual(end_time.hour, 15)
+        self.assertEqual(end_time.minute, 30)
+
+    def test_executor_preserves_offset_aware_stored_timestamps(self) -> None:
+        downloader = self._make_mock_downloader(success=True)
+        res = execute_single_work_item(self.ledger, downloader, self.sample_item.work_item_key)
+
+        self.assertEqual(res.status, "SUCCEEDED")
+        self.assertEqual(downloader.download_intraday.call_count, 1)
+
+        call_kwargs = downloader.download_intraday.call_args.kwargs
+        start_time = call_kwargs["start_time"]
+        end_time = call_kwargs["end_time"]
+
+        self.assertIsNotNone(start_time.tzinfo)
+        self.assertIsNotNone(end_time.tzinfo)
+        self.assertEqual(start_time.hour, 9)
+        self.assertEqual(start_time.minute, 15)
+        self.assertEqual(end_time.hour, 15)
+        self.assertEqual(end_time.minute, 30)
+
 
 if __name__ == "__main__":
     unittest.main()
