@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-24 08:49:00 +05:30
-- Updated by: Offline SQLite StateLedger attempt completion checkpoint
+- Updated date and time: 2026-07-24 08:58:00 +05:30
+- Updated by: Offline single-work-item execution checkpoint
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -10,32 +10,42 @@
 
 ## Most recently completed task
 
-Implemented and verified attempt completion transitions for `StateLedger`.
+Connected `StateLedger` to `DhanIntradayDownloader` through `execute_single_work_item`.
 
-### Completed offline StateLedger attempt completion checkpoint
+### Completed single-work-item execution checkpoint
 
-- Attempt completion transitions are implemented.
-- Only `CLAIMED` attempts may be completed.
-- Success changes both attempt and work item to `SUCCEEDED`.
-- Failure changes attempt to `FAILED` and work item to `REVIEW_REQUIRED`.
-- Interruption changes attempt to `INTERRUPTED` and work item to `REVIEW_REQUIRED`.
-- Completion timestamp is stored.
-- Failure/interruption may store safe error code and summary.
-- Attempt and work-item updates are atomic using `BEGIN IMMEDIATE`.
-- Invalid or duplicate completion is rejected.
-- Attempt history is preserved.
+- The ledger is now connected to the existing `DhanIntradayDownloader` through a single-work-item executor (`execute_single_work_item`).
+- The executor:
+  - claims one registered work item
+  - loads its stored details
+  - calls the downloader exactly once
+  - marks the attempt and work item based on the result
+- Successful download:
+  - attempt → `SUCCEEDED`
+  - work item → `SUCCEEDED`
+- Normal downloader failure or ordinary exception:
+  - attempt → `FAILED`
+  - work item → `REVIEW_REQUIRED`
+- `KeyboardInterrupt` or `SystemExit`:
+  - attempt → `INTERRUPTED`
+  - work item → `REVIEW_REQUIRED`
+- Duplicate or blocked claims do not call the downloader.
+- No retry, batch execution, scheduler, stale-lease handling, reconciliation, or live API test was added.
+- Tests use a fake downloader and temporary storage.
+- Executor tests: **7/7 passing**.
 - Ledger tests: **22/22 passing**.
-- Full suite: **98/98 passing**.
+- Full suite: **105/105 passing**.
 
 ### Current scope boundary
 
 - **Still unimplemented**:
+  - a controlled live execution test through the new executor
   - stale-lease review
   - retry authorization
-  - approved retry claims
+  - approved retries
   - reconciliation
-  - download execution
-- Planning, registration, initial claim, and attempt completion only.
+  - batch or scheduled execution
+- Planning, registration, initial claim, completion, and single-item execution orchestration only.
 - No live request authorized.
 - Broad downloads and repeated live calls still require separate human approval.
 
@@ -172,4 +182,4 @@ performed as part of a documentation checkpoint or engineering task:
 
 ## Recommended next task
 
-Implement stale-lease review only.
+Perform one separately approved controlled live execution through the new executor.

@@ -7,6 +7,7 @@ from typing import Union, Tuple, Optional
 
 from dhan_lean.data.models import (
     DownloadWorkItem,
+    RequestWindow,
     RegistrationStatus,
     RegistrationResult,
     ClaimStatus,
@@ -210,6 +211,49 @@ class StateLedger:
             except Exception:
                 pass
             raise
+        finally:
+            conn.close()
+
+    def get_work_item(self, work_item_key: str) -> Optional[DownloadWorkItem]:
+        conn = self._connect()
+        try:
+            cursor = conn.execute(
+                """
+                SELECT symbol, security_id, exchange_segment, instrument, bar_size,
+                       session_date, desired_start_ist, desired_end_ist,
+                       request_from_date, request_to_date, artifact_directory_rel
+                FROM work_items WHERE work_item_key = ?;
+                """,
+                (work_item_key,)
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+
+            (
+                symbol, security_id, exchange_segment, instrument, bar_size,
+                session_date_str, desired_start_ist, desired_end_ist,
+                request_from_date, request_to_date, artifact_directory_rel
+            ) = row
+
+            request_window = RequestWindow(
+                from_date=request_from_date,
+                to_date=request_to_date,
+                desired_start_ist=desired_start_ist,
+                desired_end_ist=desired_end_ist
+            )
+
+            return DownloadWorkItem(
+                symbol=symbol,
+                security_id=security_id,
+                exchange_segment=exchange_segment,
+                instrument=instrument,
+                bar_size=bar_size,
+                session_date=datetime.strptime(session_date_str, "%Y-%m-%d").date(),
+                request_window=request_window,
+                output_directory=self._storage_root / artifact_directory_rel,
+                work_item_key=work_item_key
+            )
         finally:
             conn.close()
 

@@ -52,6 +52,18 @@ class ClaimResult:
     attempt: Optional[WorkItemAttempt] = None
 
 
+@dataclass(frozen=True)
+class SingleExecutionResult:
+    """Immutable result container for a single work-item execution."""
+    status: str
+    work_item_key: str
+    claim_status: ClaimStatus
+    attempt: Optional[WorkItemAttempt] = None
+    download_result: Optional[DownloadResult] = None
+    error_code: Optional[str] = None
+    error_summary: Optional[str] = None
+
+
 
 
 @dataclass(frozen=True)
