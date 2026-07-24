@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-24 09:46:00 +05:30
-- Updated by: Private Dhan Token-Management Service checkpoint
+- Updated date and time: 2026-07-24 11:18:00 +05:30
+- Updated by: Successful controlled live executor retest
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -10,47 +10,43 @@
 
 ## Most recently completed task
 
-Implemented a hardened, minimal private Dhan token-management service (`dhan_lean.services.token_admin` & `dhan_lean.security.token_store`).
+Performed a successful controlled live executor retest on swingserver.
 
-### Completed private token-management service checkpoint
+### Successful controlled live executor retest
 
-- A private Dhan token-management service is implemented but not deployed.
-- It uses only Python standard library.
-- Default binding is `127.0.0.1`.
-- `0.0.0.0` is rejected.
-- Explicit Tailscale IP binding (`100.121.84.8`) is supported.
-- The service refuses to run as root.
-- Authentication uses versioned salted `hashlib.scrypt` configuration (`scrypt$<n>$<r>$<p>$<salt>$<key>`).
-- Plain SHA-256 and malformed password configurations are rejected.
-- Sessions are random, expiring, `HttpOnly`, and `SameSite=Strict`.
-- Logout requires authenticated `POST /logout` with valid CSRF.
-- Token updates require authentication and CSRF.
-- Request bodies are size-limited (`<= 10,000` bytes).
-- Rate limiting is enabled.
-- Tokens, passwords, hashes, cookies, and CSRF values are never logged or returned.
-- The credential file:
-  - rejects symlinks
-  - preserves unrelated variables and comments
-  - collapses duplicate token entries
-  - uses same-directory temporary write
-  - flushes and fsyncs before atomic replacement
-  - ends with mode `0600`
-- The application never invokes `sudo` or changes ownership.
-- Deployment will require a one-time administrator permission setup.
-- Token store tests: **10/10 passing**.
-- Token admin tests: **16/16 passing**.
-- Full suite: **133/133 passing**.
+- **Proven Milestone**: The single-work-item historical download pipeline is now proven end-to-end with a real Dhan request.
+- Date tested: 2026-07-24
+- Symbol: HDFCBANK
+- Security ID: 1333
+- Historical session: 2026-07-22
+- Resolution: 1m
+- Exactly one Dhan API request executed
+- HTTP status: 200 OK
+- Execution state: `SUCCEEDED`
+- Work-item state: `SUCCEEDED`
+- Attempt state: `SUCCEEDED`
+- Attempt count: 1
+- Retry authorizations: 0
+- Candle count: 375
+- First timestamp: 2026-07-22 09:15 IST
+- Last timestamp: 2026-07-22 15:29 IST
+- Timestamps strictly increasing and unique
+- All candles within the approved session
+- Token absent from artifacts, ledger, and logs
+- Run ID: `retest_20260724T054518Z`
+- Artifact stored under `/srv/market-data/raw/executor-retest/retest_20260724T054518Z/`
+- Ledger stored at `/tmp/ledger_retest_20260724T054518Z.db`
+- Repository remained clean at `5c91a24623ce92cb5e4ec6403abbeaa58700fe9f`
 
 ### Current scope boundary
 
 - **Still unimplemented**:
-  - deployment to swingserver
-  - systemd service
-  - HTTPS
-  - automatic token generation or renewal
-  - Dhan token validation
-  - another controlled live download test
-- Planning, registration, execution orchestration, and private token management service only.
+  - stale-lease review
+  - retry authorization
+  - approved retries
+  - reconciliation
+  - batch or scheduled execution
+- Planning, registration, execution orchestration, private token-management service, and single-item execution proof only.
 - No live request authorized without explicit approval.
 
 
