@@ -40,6 +40,8 @@ class WorkItemAttempt:
     lease_duration_seconds: int
     lease_expires_at: str
     completed_at: Optional[str] = None
+    error_code: Optional[str] = None
+    error_summary: Optional[str] = None
 
 
 @dataclass(frozen=True)

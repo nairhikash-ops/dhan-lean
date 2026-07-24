@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS attempts (
     lease_duration_seconds INTEGER NOT NULL CHECK (lease_duration_seconds > 0),
     lease_expires_at TEXT NOT NULL,
     completed_at TEXT NULL,
+    error_code TEXT NULL,
+    error_summary TEXT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (work_item_key) REFERENCES work_items(work_item_key) ON DELETE RESTRICT
@@ -261,8 +263,8 @@ class StateLedger:
                 INSERT INTO attempts (
                     attempt_id, work_item_key, attempt_number, run_id, state,
                     claim_owner, claimed_at, lease_duration_seconds, lease_expires_at,
-                    completed_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'CLAIMED', ?, ?, ?, ?, NULL, ?, ?);
+                    completed_at, error_code, error_summary, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'CLAIMED', ?, ?, ?, ?, NULL, NULL, NULL, ?, ?);
                 """,
                 (
                     attempt_id_str, work_item_key, attempt_number, run_id_str,
@@ -286,7 +288,6 @@ class StateLedger:
 
             conn.execute("COMMIT;")
 
-
             attempt = WorkItemAttempt(
                 attempt_id=attempt_id_str,
                 work_item_key=work_item_key,
@@ -297,10 +298,160 @@ class StateLedger:
                 claimed_at=now_iso,
                 lease_duration_seconds=lease_duration_seconds,
                 lease_expires_at=lease_expires_iso,
-                completed_at=None
+                completed_at=None,
+                error_code=None,
+                error_summary=None
             )
 
             return ClaimResult(status=ClaimStatus.CLAIMED, work_item_key=work_item_key, attempt=attempt)
+        except Exception:
+            try:
+                conn.execute("ROLLBACK;")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+
+    def mark_attempt_succeeded(self, attempt_id: str) -> WorkItemAttempt:
+        return self._complete_attempt(
+            attempt_id=attempt_id,
+            target_attempt_state="SUCCEEDED",
+            target_work_item_state="SUCCEEDED",
+            error_code=None,
+            error_summary=None
+        )
+
+    def mark_attempt_failed(
+        self,
+        attempt_id: str,
+        error_code: Optional[str] = None,
+        error_summary: Optional[str] = None
+    ) -> WorkItemAttempt:
+        return self._complete_attempt(
+            attempt_id=attempt_id,
+            target_attempt_state="FAILED",
+            target_work_item_state="REVIEW_REQUIRED",
+            error_code=error_code,
+            error_summary=error_summary
+        )
+
+    def mark_attempt_interrupted(
+        self,
+        attempt_id: str,
+        error_code: Optional[str] = None,
+        error_summary: Optional[str] = None
+    ) -> WorkItemAttempt:
+        return self._complete_attempt(
+            attempt_id=attempt_id,
+            target_attempt_state="INTERRUPTED",
+            target_work_item_state="REVIEW_REQUIRED",
+            error_code=error_code,
+            error_summary=error_summary
+        )
+
+    def _complete_attempt(
+        self,
+        attempt_id: str,
+        target_attempt_state: str,
+        target_work_item_state: str,
+        error_code: Optional[str] = None,
+        error_summary: Optional[str] = None
+    ) -> WorkItemAttempt:
+        if not attempt_id or not isinstance(attempt_id, str) or not attempt_id.strip():
+            raise ValueError("attempt_id must be a non-empty string.")
+        if error_code is not None and not isinstance(error_code, str):
+            raise TypeError("error_code must be a string or None.")
+        if error_summary is not None and not isinstance(error_summary, str):
+            raise TypeError("error_summary must be a string or None.")
+
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE;")
+            cursor = conn.execute(
+                """
+                SELECT work_item_key, attempt_number, run_id, state, claim_owner,
+                       claimed_at, lease_duration_seconds, lease_expires_at, completed_at,
+                       error_code, error_summary
+                FROM attempts WHERE attempt_id = ?;
+                """,
+                (attempt_id,)
+            )
+            row = cursor.fetchone()
+            if row is None:
+                conn.execute("ROLLBACK;")
+                raise ValueError(f"Attempt not found: {attempt_id}")
+
+            (
+                work_item_key, attempt_number, run_id, current_attempt_state, claim_owner,
+                claimed_at, lease_duration_seconds, lease_expires_at, completed_at,
+                _, _
+            ) = row
+
+            if current_attempt_state != "CLAIMED":
+                conn.execute("ROLLBACK;")
+                raise ValueError(
+                    f"Cannot complete attempt {attempt_id} in state '{current_attempt_state}'; expected 'CLAIMED'."
+                )
+
+            wi_cursor = conn.execute(
+                "SELECT state FROM work_items WHERE work_item_key = ?;",
+                (work_item_key,)
+            )
+            wi_row = wi_cursor.fetchone()
+            if wi_row is None:
+                conn.execute("ROLLBACK;")
+                raise ValueError(f"Work item not found for key: {work_item_key}")
+
+            wi_state = wi_row[0]
+            if wi_state != "CLAIMED":
+                conn.execute("ROLLBACK;")
+                raise ValueError(
+                    f"Cannot complete attempt {attempt_id} when work item is in state '{wi_state}'; expected 'CLAIMED'."
+                )
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+
+            att_update = conn.execute(
+                """
+                UPDATE attempts
+                SET state = ?, completed_at = ?, error_code = ?, error_summary = ?, updated_at = ?
+                WHERE attempt_id = ? AND state = 'CLAIMED';
+                """,
+                (target_attempt_state, now_iso, error_code, error_summary, now_iso, attempt_id)
+            )
+            if att_update.rowcount != 1:
+                conn.execute("ROLLBACK;")
+                raise RuntimeError(f"State transition conflict while updating attempt: {attempt_id}")
+
+            wi_update = conn.execute(
+                """
+                UPDATE work_items
+                SET state = ?, updated_at = ?
+                WHERE work_item_key = ? AND state = 'CLAIMED';
+                """,
+                (target_work_item_state, now_iso, work_item_key)
+            )
+            if wi_update.rowcount != 1:
+                conn.execute("ROLLBACK;")
+                raise RuntimeError(f"State transition conflict while updating work item: {work_item_key}")
+
+            conn.execute("COMMIT;")
+
+            return WorkItemAttempt(
+                attempt_id=attempt_id,
+                work_item_key=work_item_key,
+                attempt_number=attempt_number,
+                run_id=run_id,
+                state=target_attempt_state,
+                claim_owner=claim_owner,
+                claimed_at=claimed_at,
+                lease_duration_seconds=lease_duration_seconds,
+                lease_expires_at=lease_expires_at,
+                completed_at=now_iso,
+                error_code=error_code,
+                error_summary=error_summary
+            )
         except Exception:
             try:
                 conn.execute("ROLLBACK;")

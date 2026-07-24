@@ -295,5 +295,158 @@ class TestStateLedger(unittest.TestCase):
 
 
 
+    def test_successful_attempt_completion(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+        claim_res = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+
+        attempt = ledger.mark_attempt_succeeded(claim_res.attempt.attempt_id)
+        self.assertIsInstance(attempt, WorkItemAttempt)
+        self.assertEqual(attempt.state, "SUCCEEDED")
+        self.assertIsNotNone(attempt.completed_at)
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            wi_state = conn.execute("SELECT state FROM work_items WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()[0]
+            self.assertEqual(wi_state, "SUCCEEDED")
+            att_row = conn.execute("SELECT state, completed_at FROM attempts WHERE attempt_id = ?;", (claim_res.attempt.attempt_id,)).fetchone()
+            self.assertEqual(att_row[0], "SUCCEEDED")
+            self.assertIsNotNone(att_row[1])
+        finally:
+            conn.close()
+
+    def test_failed_attempt_completion_with_error_details(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+        claim_res = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+
+        attempt = ledger.mark_attempt_failed(
+            claim_res.attempt.attempt_id,
+            error_code="HTTP_500",
+            error_summary="Internal Server Error from upstream"
+        )
+        self.assertIsInstance(attempt, WorkItemAttempt)
+        self.assertEqual(attempt.state, "FAILED")
+        self.assertEqual(attempt.error_code, "HTTP_500")
+        self.assertEqual(attempt.error_summary, "Internal Server Error from upstream")
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            wi_state = conn.execute("SELECT state FROM work_items WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()[0]
+            self.assertEqual(wi_state, "REVIEW_REQUIRED")
+            att_row = conn.execute("SELECT state, error_code, error_summary FROM attempts WHERE attempt_id = ?;", (claim_res.attempt.attempt_id,)).fetchone()
+            self.assertEqual(att_row[0], "FAILED")
+            self.assertEqual(att_row[1], "HTTP_500")
+            self.assertEqual(att_row[2], "Internal Server Error from upstream")
+        finally:
+            conn.close()
+
+    def test_interrupted_attempt_completion(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+        claim_res = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+
+        attempt = ledger.mark_attempt_interrupted(
+            claim_res.attempt.attempt_id,
+            error_code="SIGINT",
+            error_summary="Process terminated by signal"
+        )
+        self.assertIsInstance(attempt, WorkItemAttempt)
+        self.assertEqual(attempt.state, "INTERRUPTED")
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            wi_state = conn.execute("SELECT state FROM work_items WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()[0]
+            self.assertEqual(wi_state, "REVIEW_REQUIRED")
+            att_state = conn.execute("SELECT state FROM attempts WHERE attempt_id = ?;", (claim_res.attempt.attempt_id,)).fetchone()[0]
+            self.assertEqual(att_state, "INTERRUPTED")
+        finally:
+            conn.close()
+
+    def test_invalid_attempt_id_rejected(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        with self.assertRaises(ValueError) as ctx:
+            ledger.mark_attempt_succeeded("non_existent_attempt_id")
+        self.assertIn("Attempt not found", str(ctx.exception))
+
+        with self.assertRaises(ValueError):
+            ledger.mark_attempt_succeeded("")
+
+    def test_completing_already_completed_attempt_rejected(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+        claim_res = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+
+        ledger.mark_attempt_succeeded(claim_res.attempt.attempt_id)
+
+        with self.assertRaises(ValueError) as ctx:
+            ledger.mark_attempt_succeeded(claim_res.attempt.attempt_id)
+        self.assertIn("expected 'CLAIMED'", str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            ledger.mark_attempt_failed(claim_res.attempt.attempt_id, error_code="FAIL")
+        self.assertIn("expected 'CLAIMED'", str(ctx.exception))
+
+    def test_completion_transaction_rollback_on_failure(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+        claim_res = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+
+        orig_connect = ledger._connect
+
+        class FaultyConnection:
+            def __init__(self, real_conn):
+                self._real_conn = real_conn
+
+            def execute(self, sql, *args):
+                if "UPDATE work_items" in sql:
+                    raise RuntimeError("Injected work_items update failure during completion")
+                return self._real_conn.execute(sql, *args)
+
+            def close(self):
+                self._real_conn.close()
+
+        def faulty_connect():
+            return FaultyConnection(orig_connect())
+
+        with unittest.mock.patch.object(ledger, "_connect", side_effect=faulty_connect):
+            with self.assertRaises(RuntimeError) as ctx:
+                ledger.mark_attempt_succeeded(claim_res.attempt.attempt_id)
+            self.assertIn("Injected work_items update failure", str(ctx.exception))
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            wi_state = conn.execute("SELECT state FROM work_items WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()[0]
+            self.assertEqual(wi_state, "CLAIMED")
+            att_state = conn.execute("SELECT state FROM attempts WHERE attempt_id = ?;", (claim_res.attempt.attempt_id,)).fetchone()[0]
+            self.assertEqual(att_state, "CLAIMED")
+        finally:
+            conn.close()
+
+    def test_attempt_history_preserved_on_completion(self) -> None:
+        ledger = StateLedger(self.db_path, self.storage_root)
+        ledger.register_work_item(self.sample_item)
+        claim_res = ledger.claim_work_item(self.sample_item.work_item_key, claim_owner="worker-1", lease_duration_seconds=900)
+        orig_attempt = claim_res.attempt
+
+        completed_attempt = ledger.mark_attempt_succeeded(orig_attempt.attempt_id)
+
+        self.assertEqual(completed_attempt.attempt_id, orig_attempt.attempt_id)
+        self.assertEqual(completed_attempt.work_item_key, orig_attempt.work_item_key)
+        self.assertEqual(completed_attempt.attempt_number, orig_attempt.attempt_number)
+        self.assertEqual(completed_attempt.run_id, orig_attempt.run_id)
+        self.assertEqual(completed_attempt.claim_owner, orig_attempt.claim_owner)
+        self.assertEqual(completed_attempt.claimed_at, orig_attempt.claimed_at)
+        self.assertEqual(completed_attempt.lease_duration_seconds, orig_attempt.lease_duration_seconds)
+        self.assertEqual(completed_attempt.lease_expires_at, orig_attempt.lease_expires_at)
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM attempts WHERE work_item_key = ?;", (self.sample_item.work_item_key,)).fetchone()[0]
+            self.assertEqual(count, 1)
+        finally:
+            conn.close()
+
+
 if __name__ == "__main__":
     unittest.main()

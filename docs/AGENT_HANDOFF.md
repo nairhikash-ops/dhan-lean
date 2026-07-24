@@ -1,7 +1,7 @@
 # Agent Handoff
 
-- Updated date and time: 2026-07-24 00:33:30 +05:30
-- Updated by: Offline SQLite StateLedger initial-claim checkpoint
+- Updated date and time: 2026-07-24 08:49:00 +05:30
+- Updated by: Offline SQLite StateLedger attempt completion checkpoint
 - Local repository: `D:\Hikash Development\dhan-lean`
 - Server repository: `/srv/dhan-lean`
 - Server SSH: `hacker@100.121.84.8` (Tailscale)
@@ -10,29 +10,35 @@
 
 ## Most recently completed task
 
-Implemented and verified atomic initial claiming for registered `PLANNED` work items in `StateLedger`.
+Implemented and verified attempt completion transitions for `StateLedger`.
 
-### Completed offline StateLedger initial-claim checkpoint
+### Completed offline StateLedger attempt completion checkpoint
 
-- Atomic initial claims are implemented.
-- Claims require `claim_owner` and explicit positive lease duration.
-- Attempt 1 stores attempt ID, run ID, owner, claim time and lease expiry.
-- Attempt insertion and `PLANNED` → `CLAIMED` transition are atomic.
-- Conditional update failure rolls everything back.
-- Ledger tests: **15/15 passing**.
-- Full suite: **91/91 passing**.
+- Attempt completion transitions are implemented.
+- Only `CLAIMED` attempts may be completed.
+- Success changes both attempt and work item to `SUCCEEDED`.
+- Failure changes attempt to `FAILED` and work item to `REVIEW_REQUIRED`.
+- Interruption changes attempt to `INTERRUPTED` and work item to `REVIEW_REQUIRED`.
+- Completion timestamp is stored.
+- Failure/interruption may store safe error code and summary.
+- Attempt and work-item updates are atomic using `BEGIN IMMEDIATE`.
+- Invalid or duplicate completion is rejected.
+- Attempt history is preserved.
+- Ledger tests: **22/22 passing**.
+- Full suite: **98/98 passing**.
 
 ### Current scope boundary
 
 - **Still unimplemented**:
-  - success/failure completion
   - stale-lease review
   - retry authorization
-  - download execution
+  - approved retry claims
   - reconciliation
-- Planning, registration, and initial claim only.
+  - download execution
+- Planning, registration, initial claim, and attempt completion only.
 - No live request authorized.
 - Broad downloads and repeated live calls still require separate human approval.
+
 
 
 
@@ -166,4 +172,4 @@ performed as part of a documentation checkpoint or engineering task:
 
 ## Recommended next task
 
-Implement attempt completion transitions only.
+Implement stale-lease review only.
