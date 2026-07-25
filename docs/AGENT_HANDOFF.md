@@ -203,3 +203,61 @@ performed as part of a documentation checkpoint or engineering task:
 ## Recommended next task
 
 Commit and synchronize the private token-management service before deployment.
+
+## Local Windows environment verification (2026-07-25)
+
+- **Environment**: Newly restored Windows workstation; repository remains on
+  `feature/lean-foundation` with no application-code changes.
+- **Tools**: Git `2.55.0.windows.3`, Python `3.14.6`, pip `26.1.2`.
+- **Virtual environment**: `.venv` created with the standard-library `venv`
+  module and verified runnable.
+- **Declared dependency**: `dhanhq==2.2.0` installed exactly; `pip check`
+  reported no broken requirements.
+- **Project-owned tests**: `python -m unittest discover -s tests -t . -v`
+  ran **146/146 passing** (0 failures, 0 skipped, 0 errors) in 22.832s.
+- **Vendored/reference tests**: not included; discovery was explicitly scoped
+  to the repository `tests/` directory.
+- **Lint/format**: no repository lint or formatting command/configuration was
+  found.
+- The earlier documented **76-test** result is a stale historical checkpoint;
+  the current branch verifies 146 passing project tests.
+
+## Persistent request-budget guard (offline-only, 2026-07-25)
+
+- Added `dhan_lean.data.request_budget.RequestBudget`, stored in the existing
+  SQLite ledger database; no service or dependency was added.
+- Budget identity is `(scope, window_id)`. A new `window_id` is the explicit
+  reset boundary; allowance and consumed count are durable in `request_budgets`.
+- Consumption uses a SQLite `BEGIN IMMEDIATE` transaction and guarded update,
+  so concurrent processes cannot oversubscribe the allowance.
+- Missing, malformed, conflicting, or inaccessible state fails closed with a
+  clear `RequestBudgetStateError`; exhausted allowance raises
+  `RequestBudgetExceeded` without mutation.
+- `execute_single_work_item` and `execute_batch` accept an explicit budget
+  guard while preserving existing call compatibility. Live batch testing
+  remains suspended; only offline tests were run.
+- Focused budget tests: **6/6 passing**, including reopen persistence,
+  restart-equivalent observation, exact boundary, rejection immutability,
+  concurrency, and corrupt-state fail-closed behavior.
+
+## Network-boundary budget enforcement (offline-only, 2026-07-25)
+
+- **Call graph confirmed from source**: project-owned runtime modules are
+  `DhanHttpTransport.post_intraday` → `_default_executor` → `urllib.request.urlopen`;
+  `DhanIntradayDownloader` reaches that transport, and the executor/coordinator
+  wrappers reach the downloader. No project CLI, pilot script, or service
+  invokes these paths; repository callers outside runtime code are tests with
+  injected executors or mocks.
+- The default network executor now requires an explicit configured
+  `RequestBudget`, `budget_scope`, and `budget_window_id`, and consumes one unit
+  immediately before the outbound attempt. Missing or exhausted configuration
+  fails before the executor is called.
+- The default transport has no retry loop, so each outbound attempt consumes
+  exactly one unit. Injected executors remain an intentional offline/test seam.
+- Focused network-boundary tests: **9/9 passing** (including mocked reachability,
+  missing configuration, exhaustion, restart persistence, concurrency, and
+  failed-attempt accounting). No further network calls were made after a
+  fixture initially failed to intercept a transport executor; that accidental
+  endpoint attempt returned HTTP 400 and is explicitly not live verification.
+- Live batch activity remains suspended pending review and a separately
+  authorised, tightly bounded pilot.

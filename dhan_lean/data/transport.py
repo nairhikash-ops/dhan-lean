@@ -7,6 +7,7 @@ import urllib.request
 from typing import Callable, Optional, Tuple, List, Any
 
 from dhan_lean.data.models import HttpResponse
+from dhan_lean.data.request_budget import RequestBudget
 
 _INVALID_CONTROL_CHARS = re.compile(r'[\r\n\x00]')
 
@@ -68,6 +69,9 @@ class DhanHttpTransport:
         timeout_seconds: float = 30.0,
         endpoint: str = "https://api.dhan.co/v2/charts/intraday",
         executor: Optional[Callable[[urllib.request.Request, float], HttpResponse]] = None,
+        request_budget: Optional[RequestBudget] = None,
+        budget_scope: Optional[str] = None,
+        budget_window_id: Optional[str] = None,
     ):
         if not isinstance(access_token, str):
             raise TypeError(f"access_token must be a string, got {type(access_token).__name__}")
@@ -98,6 +102,10 @@ class DhanHttpTransport:
         self.timeout_seconds = float(timeout_seconds)
         self.endpoint = endpoint
         self._executor = executor if executor is not None else _default_executor
+        self._uses_default_executor = executor is None
+        self._request_budget = request_budget
+        self._budget_scope = budget_scope
+        self._budget_window_id = budget_window_id
 
     def __repr__(self) -> str:
         return f"<DhanHttpTransport endpoint='{self.endpoint}' token='[REDACTED]'>"
@@ -119,6 +127,17 @@ class DhanHttpTransport:
             },
             method="POST"
         )
+
+        if self._uses_default_executor:
+            if not isinstance(self._request_budget, RequestBudget):
+                raise ValueError("request_budget is required for the default network executor")
+            if not isinstance(self._budget_scope, str) or not self._budget_scope.strip():
+                raise ValueError("budget_scope is required for the default network executor")
+            if not isinstance(self._budget_window_id, str) or not self._budget_window_id.strip():
+                raise ValueError("budget_window_id is required for the default network executor")
+            # The default executor has no retry loop: one call equals one
+            # outbound attempt, consumed immediately before urlopen.
+            self._request_budget.consume(self._budget_scope, self._budget_window_id)
 
         try:
             res = self._executor(req, self.timeout_seconds)

@@ -10,6 +10,7 @@ from dhan_lean.data.models import (
     WorkItemAttempt,
     DownloadResult
 )
+from dhan_lean.data.request_budget import RequestBudget
 
 
 def execute_single_work_item(
@@ -17,7 +18,10 @@ def execute_single_work_item(
     downloader: DhanIntradayDownloader,
     work_item_key: str,
     claim_owner: str = "single_executor",
-    lease_duration_seconds: int = 900
+    lease_duration_seconds: int = 900,
+    request_budget: Optional[RequestBudget] = None,
+    budget_scope: str = "dhan_intraday",
+    budget_window_id: str = "default",
 ) -> SingleExecutionResult:
     """
     Executes a single registered work item by claiming it in the ledger,
@@ -63,6 +67,8 @@ def execute_single_work_item(
         end_dt = end_dt.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
 
     try:
+        if request_budget is not None:
+            request_budget.consume(budget_scope, budget_window_id)
         download_result = downloader.download_intraday(
             symbol=work_item.symbol,
             security_id=work_item.security_id,

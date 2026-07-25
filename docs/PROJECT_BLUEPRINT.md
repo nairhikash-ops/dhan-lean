@@ -125,6 +125,10 @@ The repository is organized around a layered architecture:
 2. The project documentation and reference snapshots define the supported SDK version and expected data contract.
 3. LEAN provides the backtesting engine and expects data in a format compatible with its engine.
 4. Docker and VPS deployment files provide the environment where the runtime can be exercised.
+5. The existing SQLite ledger also stores persistent request-budget state for
+   explicitly configured execution windows.
+6. The default Dhan HTTP network executor requires that persistent budget and
+   consumes one unit immediately before each outbound attempt.
 
 Text flow:
 
@@ -238,12 +242,19 @@ The following commands were verified from repository evidence and local Git stat
 ### Current known test status
 
 - Repository documentation and Git inspection were verified during this task.
+- On 2026-07-25, Python 3.14.6 ran the project-owned `tests/` suite with
+  152 passing tests and no failures, skips, or errors, including six focused
+  request-budget tests.
 - LEAN runtime execution remains unverified because of the Docker runtime issue.
 
 ### Validation gaps
 
 - No end-to-end Dhan-to-LEAN backtest has been run yet.
-- No automated validation of the new shared context files beyond documentation review and diff checks has been performed.
+- No automated validation of vendored SDK/reference tests was performed.
+- Request-budget persistence and concurrency are offline-verified only; no
+  live Dhan API calls were made.
+- The default network executor is offline-verified to fail closed without
+  explicit budget configuration; injected transport executors are test seams.
 
 ## 14. Known issues and technical debt
 
