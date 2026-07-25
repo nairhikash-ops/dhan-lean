@@ -261,3 +261,13 @@ Commit and synchronize the private token-management service before deployment.
   endpoint attempt returned HTTP 400 and is explicitly not live verification.
 - Live batch activity remains suspended pending review and a separately
   authorised, tightly bounded pilot.
+
+## Project test network guard (offline-only, 2026-07-25)
+
+- Importing the project-owned `tests` package automatically installs a global
+  standard-library guard for normal `unittest discover` runs.
+- External `urllib.request.urlopen` and non-loopback socket connections are
+  blocked with clear test failures. Local loopback test servers and injected
+  transport executors remain permitted.
+- Passing offline tests is not live verification; live batch activity remains
+  suspended pending a separately authorised pilot.
