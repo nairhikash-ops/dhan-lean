@@ -42,6 +42,15 @@ from dhan_lean.providers.zerodha.fake_broker import (
     FakeBrokerSequenceExhausted,
     FakeBrokerUnexpectedRequest,
 )
+from dhan_lean.providers.zerodha.planning import (
+    FINGERPRINT_SCHEMA_VERSION,
+    PLANNING_SCHEMA_VERSION,
+    ZerodhaPlannedRequest,
+    ZerodhaPlanningError,
+    ZerodhaPlanningInput,
+    PlanningErrorCode,
+    plan_historical_candles,
+)
 
 __all__ = [
     "AmbiguousInstrumentError",
@@ -78,4 +87,11 @@ __all__ = [
     "encode_request",
     "encode_response",
     "error_policy",
+    "FINGERPRINT_SCHEMA_VERSION",
+    "PLANNING_SCHEMA_VERSION",
+    "PlanningErrorCode",
+    "ZerodhaPlannedRequest",
+    "ZerodhaPlanningError",
+    "ZerodhaPlanningInput",
+    "plan_historical_candles",
 ]
