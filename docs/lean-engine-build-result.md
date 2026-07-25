@@ -1,3 +1,5 @@
+> Historical pre-retirement record (non-active): retained for LEAN build provenance; it does not describe current provider dependencies.
+
 # LEAN Engine Build Result
 
 > Execution Date: 2026-07-21

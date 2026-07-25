@@ -1,5 +1,17 @@
 # Agent Handoff
 
+## Provider-neutral cleanup checkpoint (2026-07-25)
+
+- The retired provider runtime, credentials, and reference material were archived outside the repository before this source cleanup.
+- Active code is offline and provider-neutral: source adapter -> normalized bars -> validation -> ledger/execution -> LEAN conversion.
+- No active brokerage integration exists. Zerodha authentication remains separate and is not connected to this repository.
+- This cleanup is intentionally uncommitted on `refactor/provider-neutral-data-pipeline` pending review.
+- Current offline test baseline: 13 tests passing.
+
+## Historical pre-retirement handoff record (non-active)
+
+Everything below this heading is preserved as historical context only. It must not be used as active configuration, deployment guidance, or runtime evidence after the 2026-07-25 retirement.
+
 - Updated date and time: 2026-07-24 11:30:00 +05:30
 - Updated by: Offline Sequential Batch Coordinator milestone
 - Local repository: `D:\Hikash Development\dhan-lean`
@@ -214,14 +226,13 @@ Commit and synchronize the private token-management service before deployment.
 - **Declared dependency**: `dhanhq==2.2.0` installed exactly; `pip check`
   reported no broken requirements.
 - **Project-owned tests**: `python -m unittest discover -s tests -t . -v`
-  ran **160/160 passing** (0 failures, 0 skipped, 0 errors) in the latest
-  verified run; the earlier 146-test result is historical.
+  ran **181/181 passing** (0 failures, 0 skipped, 0 errors) in the latest
+  verified run; the earlier 172-test and 180-test results are historical.
 - **Vendored/reference tests**: not included; discovery was explicitly scoped
   to the repository `tests/` directory.
 - **Lint/format**: no repository lint or formatting command/configuration was
   found.
-- The earlier documented **76-test** result is a stale historical checkpoint;
-  the current branch verifies 146 passing project tests.
+- The earlier documented **76-test**, **146-test**, and **160-test** results are stale historical checkpoints.
 
 ## Persistent request-budget guard (offline-only, 2026-07-25)
 
@@ -274,3 +285,25 @@ Commit and synchronize the private token-management service before deployment.
   transport executors remain permitted.
 - Passing offline tests is not live verification; live batch activity remains
   suspended pending a separately authorised pilot.
+
+## LEAN Minute Data Format Converter (offline-only, 2026-07-25)
+
+- Implemented reusable offline converter `convert_dhan_minute_to_lean` in
+  `dhan_lean/data/converter.py` for converting validated Dhan 1-minute intraday
+  bar data into LEAN-native equity minute-data CSV-in-ZIP format.
+- Format source-verified against pinned LEAN commit `1fee999e4f437d09e255be5c3fde783206e05389`
+  (`LeanData.cs` & `TradeBar.cs`).
+- Target layout: `Data/equity/india/minute/{symbol}/{YYYYMMDD}_trade.zip`
+  containing `{YYYYMMDD}_{symbol}_minute_trade.csv`.
+- Encodes timestamps as `TimeMs` (milliseconds since midnight in `Asia/Kolkata` IST)
+  using integer-safe microsecond epoch arithmetic, supporting Unix seconds and milliseconds.
+- Scales float/Decimal/str INR prices to LEAN deci-cents ($10,000\times$) using `Decimal`
+  arithmetic with `ROUND_HALF_UP` rounding.
+- Enforces safe `os.link` exclusive publication: fails closed if target exists (preventing race condition overwrites),
+  writes to standard library temporary file in target directory, performs atomic hard link publication,
+  cleans up temporary files on failure, and normalizes all OS/Decimal/datetime errors to `LeanConversionError`.
+- Resolves timestamp-key ambiguity explicitly: compares `"timestamp"` and `"start_Time"` semantically across all indices if both present.
+- Focused converter tests: **19/19 passing** (`tests/test_converter.py`).
+- Documentation updated in `docs/lean-data-converter.md`. Format is verified
+  against official LEAN engine source; loading converted ZIP artifacts into LEAN
+  will be verified in a subsequent task.

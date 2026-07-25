@@ -1,5 +1,5 @@
 # =============================================================================
-# dhan-lean — root .gitignore
+# Offline LEAN data project root .gitignore
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -141,8 +141,6 @@ $RECYCLE.BIN/
 # ---------------------------------------------------------------------------
 # Nested Git repositories — exclude .git metadata only
 # ---------------------------------------------------------------------------
-references/DhanHQ-py/.git/
-references/DhanHQ-py-v2.2.0/.git/
 references/**/.git/
 
 # Keep the Python source subpackage; generic data/ rules must not hide it.

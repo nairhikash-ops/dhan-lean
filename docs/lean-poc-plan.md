@@ -1,3 +1,5 @@
+> Historical pre-retirement record (non-active): retained for LEAN compatibility provenance; it does not describe current provider dependencies.
+
 # LEAN Proof-of-Concept Plan
 
 > Created: 2026-07-21

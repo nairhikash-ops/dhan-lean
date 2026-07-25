@@ -1,92 +1,95 @@
+"""Tests for TimeWindow and calculate_minute_window."""
+
 import unittest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from dhan_lean.data.window import calculate_request_window
-from dhan_lean.data.models import RequestWindow
+from dhan_lean.data.models import TimeWindow
+from dhan_lean.data.window import calculate_minute_window
 
 IST = ZoneInfo("Asia/Kolkata")
-UTC = timezone.utc
 
 
-class TestRequestWindow(unittest.TestCase):
+class TestWindow(unittest.TestCase):
+    def test_time_window_creation_and_immutability(self) -> None:
+        start = datetime(2026, 7, 20, 9, 15, tzinfo=IST)
+        end = datetime(2026, 7, 20, 15, 30, tzinfo=IST)
+        window = TimeWindow(start=start, end=end, interval_minutes=1)
+        self.assertEqual(window.start, start)
+        self.assertEqual(window.end, end)
+        self.assertEqual(window.interval_minutes, 1)
 
-    def test_full_session_request_window(self):
-        """Test desired full session 09:15 to 15:30 IST produces fromDate 09:14:00 and toDate 15:30:00."""
-        start = datetime(2026, 7, 22, 9, 15, 0, tzinfo=IST)
-        end = datetime(2026, 7, 22, 15, 30, 0, tzinfo=IST)
+        with self.assertRaises(Exception):
+            window.interval_minutes = 5  # type: ignore[misc]
 
-        window = calculate_request_window(start, end, interval_minutes=1)
 
-        self.assertEqual(window.from_date, "2026-07-22 09:14:00")
-        self.assertEqual(window.to_date, "2026-07-22 15:30:00")
-        self.assertEqual(window.desired_start_ist, "2026-07-22 09:15:00")
-        self.assertEqual(window.desired_end_ist, "2026-07-22 15:30:00")
+    def test_calculate_minute_window_success(self) -> None:
+        start = datetime(2026, 7, 20, 9, 15, tzinfo=IST)
+        end = datetime(2026, 7, 20, 15, 30, tzinfo=IST)
+        window = calculate_minute_window(start, end, interval_minutes=1)
+        self.assertEqual(window.start, start)
+        self.assertEqual(window.end, end)
+        self.assertEqual(window.interval_minutes, 1)
 
-    def test_short_interval_request_window(self):
-        """Test desired short 5-minute range 09:15 to 09:20 IST produces fromDate 09:14:00 and toDate 09:20:00."""
-        start = datetime(2026, 7, 22, 9, 15, 0, tzinfo=IST)
-        end = datetime(2026, 7, 22, 9, 20, 0, tzinfo=IST)
+    def test_window_requires_timezone_aware_start_and_end(self) -> None:
+        aware = datetime(2026, 7, 20, 9, 15, tzinfo=IST)
+        naive = datetime(2026, 7, 20, 9, 15)
 
-        window = calculate_request_window(start, end, interval_minutes=1)
+        with self.assertRaises(ValueError) as ctx1:
+            calculate_minute_window(naive, aware)
+        self.assertIn("timezone-aware", str(ctx1.exception))
 
-        self.assertEqual(window.from_date, "2026-07-22 09:14:00")
-        self.assertEqual(window.to_date, "2026-07-22 09:20:00")
+        with self.assertRaises(ValueError) as ctx2:
+            calculate_minute_window(aware, naive)
+        self.assertIn("timezone-aware", str(ctx2.exception))
 
-    def test_utc_input_converted_to_ist(self):
-        """Test UTC input is converted correctly to Asia/Kolkata."""
-        # 09:15 IST is 03:45 UTC
-        start_utc = datetime(2026, 7, 22, 3, 45, 0, tzinfo=UTC)
-        # 15:30 IST is 10:00 UTC
-        end_utc = datetime(2026, 7, 22, 10, 0, 0, tzinfo=UTC)
+        with self.assertRaises(ValueError) as ctx3:
+            TimeWindow(start=naive, end=aware)
+        self.assertIn("timezone-aware", str(ctx3.exception))
 
-        window = calculate_request_window(start_utc, end_utc, interval_minutes=1)
+    def test_window_requires_minute_aligned_datetimes(self) -> None:
+        start_ok = datetime(2026, 7, 20, 9, 15, 0, tzinfo=IST)
+        end_sec = datetime(2026, 7, 20, 15, 30, 15, tzinfo=IST)
+        end_micro = datetime(2026, 7, 20, 15, 30, 0, 500, tzinfo=IST)
 
-        self.assertEqual(window.from_date, "2026-07-22 09:14:00")
-        self.assertEqual(window.to_date, "2026-07-22 15:30:00")
+        with self.assertRaises(ValueError) as ctx1:
+            calculate_minute_window(start_ok, end_sec)
+        self.assertIn("minute-aligned", str(ctx1.exception))
 
-    def test_naive_datetime_rejection(self):
-        """Test naive datetimes are rejected with ValueError."""
-        start_naive = datetime(2026, 7, 22, 9, 15, 0)
-        end_aware = datetime(2026, 7, 22, 15, 30, 0, tzinfo=IST)
+        with self.assertRaises(ValueError) as ctx2:
+            calculate_minute_window(start_ok, end_micro)
+        self.assertIn("minute-aligned", str(ctx2.exception))
 
-        with self.assertRaises(ValueError):
-            calculate_request_window(start_naive, end_aware)
+    def test_window_rejects_start_equal_or_after_end(self) -> None:
+        dt = datetime(2026, 7, 20, 9, 15, tzinfo=IST)
+        earlier = datetime(2026, 7, 20, 9, 14, tzinfo=IST)
 
-        with self.assertRaises(ValueError):
-            calculate_request_window(end_aware, start_naive)
+        with self.assertRaises(ValueError) as ctx1:
+            calculate_minute_window(dt, dt)
+        self.assertIn("start must precede end", str(ctx1.exception))
 
-    def test_non_minute_aligned_rejection(self):
-        """Test non-zero seconds or microseconds are rejected."""
-        start_sec = datetime(2026, 7, 22, 9, 15, 30, tzinfo=IST)
-        end_valid = datetime(2026, 7, 22, 15, 30, 0, tzinfo=IST)
+        with self.assertRaises(ValueError) as ctx2:
+            calculate_minute_window(dt, earlier)
+        self.assertIn("start must precede end", str(ctx2.exception))
 
-        with self.assertRaises(ValueError):
-            calculate_request_window(start_sec, end_valid)
+    def test_window_rejects_non_positive_interval_minutes(self) -> None:
+        start = datetime(2026, 7, 20, 9, 15, tzinfo=IST)
+        end = datetime(2026, 7, 20, 15, 30, tzinfo=IST)
 
-        start_micro = datetime(2026, 7, 22, 9, 15, 0, 100, tzinfo=IST)
-        with self.assertRaises(ValueError):
-            calculate_request_window(start_micro, end_valid)
+        with self.assertRaises(ValueError) as ctx1:
+            calculate_minute_window(start, end, interval_minutes=0)
+        self.assertIn("interval_minutes must be a positive integer", str(ctx1.exception))
 
-    def test_invalid_ordering_rejection(self):
-        """Test start >= end raises ValueError."""
-        dt1 = datetime(2026, 7, 22, 9, 15, 0, tzinfo=IST)
-        dt2 = datetime(2026, 7, 22, 9, 15, 0, tzinfo=IST)
-        dt3 = datetime(2026, 7, 22, 9, 10, 0, tzinfo=IST)
+        with self.assertRaises(ValueError) as ctx2:
+            TimeWindow(start, end, interval_minutes=-1)
+        self.assertIn("interval_minutes must be a positive integer", str(ctx2.exception))
 
-        with self.assertRaises(ValueError):
-            calculate_request_window(dt1, dt2)
-
-        with self.assertRaises(ValueError):
-            calculate_request_window(dt1, dt3)
-
-    def test_unsupported_interval_rejection(self):
-        """Test interval_minutes != 1 raises NotImplementedError."""
-        start = datetime(2026, 7, 22, 9, 15, 0, tzinfo=IST)
-        end = datetime(2026, 7, 22, 15, 30, 0, tzinfo=IST)
-
-        with self.assertRaises(NotImplementedError):
-            calculate_request_window(start, end, interval_minutes=5)
+    def test_utc_and_ist_timezones_handled_correctly(self) -> None:
+        start_utc = datetime(2026, 7, 20, 3, 45, tzinfo=timezone.utc)
+        end_utc = datetime(2026, 7, 20, 10, 0, tzinfo=timezone.utc)
+        window = calculate_minute_window(start_utc, end_utc)
+        self.assertEqual(window.start, start_utc)
+        self.assertEqual(window.end, end_utc)
 
 
 if __name__ == "__main__":

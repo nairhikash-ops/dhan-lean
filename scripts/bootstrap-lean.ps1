@@ -18,7 +18,7 @@ $PATCH_README = Join-Path $PSScriptRoot "..\patches\lean\README.md"
 $TARGET_MARKET_CS = Join-Path $LEAN_DIR "Common\Market.cs"
 $DATALIBRARIES_DIR = Join-Path $PSScriptRoot "..\DataLibraries"
 
-Write-Host "=== Dhan-LEAN Foundation Bootstrap ===" -ForegroundColor Cyan
+Write-Host "=== Offline LEAN Foundation Bootstrap ===" -ForegroundColor Cyan
 
 # ---------------------------------------------------------------------------
 # 1. Prerequisite Validation (Cheap Checks Before Any Heavy Operations)

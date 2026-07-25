@@ -1,7 +1,8 @@
+"""Tests for persistent SQLite request budget guard."""
+
 import sqlite3
 import tempfile
 import unittest
-from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -10,14 +11,12 @@ from dhan_lean.data.request_budget import (
     RequestBudgetExceeded,
     RequestBudgetStateError,
 )
-from dhan_lean.data.models import HttpResponse
-from dhan_lean.data.transport import DhanHttpTransport, TransportError
 
 
 class TestRequestBudget(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
-        self.db_path = Path(self.tmp.name) / "ledger.db"
+        self.db_path = Path(self.tmp.name) / "budget.db"
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -87,61 +86,25 @@ class TestRequestBudget(unittest.TestCase):
         with self.assertRaises(RequestBudgetStateError):
             budget.configure("batch", "window", 3)
 
-    def test_begin_lock_failure_is_wrapped_without_rollback_masking(self) -> None:
-        budget = RequestBudget(self.db_path, sqlite_timeout_seconds=0.05)
-        budget.configure("batch", "window", 1)
-        transport = DhanHttpTransport(
-            "token", request_budget=budget, budget_scope="batch", budget_window_id="window"
-        )
-        lock_conn = sqlite3.connect(self.db_path, isolation_level=None)
-        try:
-            lock_conn.execute("BEGIN IMMEDIATE;")
-            with patch("dhan_lean.data.transport._default_executor") as executor:
-                with self.assertRaises(RequestBudgetStateError) as raised:
-                    transport.post_intraday(b"{}")
-                executor.assert_not_called()
-            self.assertIsInstance(raised.exception, RequestBudgetStateError)
-            self.assertNotIsInstance(raised.exception, sqlite3.OperationalError)
-            self.assertIsInstance(raised.exception.__cause__, sqlite3.OperationalError)
-            self.assertEqual(budget.snapshot("batch", "window").consumed, 0)
-        finally:
-            lock_conn.rollback()
-            lock_conn.close()
-
-    def test_default_network_boundary_requires_budget_before_executor(self) -> None:
-        with patch("dhan_lean.data.transport._default_executor") as executor:
-            transport = DhanHttpTransport("token")
-            with self.assertRaises(ValueError):
-                transport.post_intraday(b"{}")
-            executor.assert_not_called()
-
-    def test_default_network_boundary_consumes_configured_budget(self) -> None:
+    def test_invalid_scope_window_allowance_amount_inputs(self) -> None:
         budget = RequestBudget(self.db_path)
-        budget.configure("batch", "window", 1)
-        response = HttpResponse(200, b"{}", b"")
-        with patch("dhan_lean.data.transport._default_executor", return_value=response) as executor:
-            transport = DhanHttpTransport(
-                "token", request_budget=budget, budget_scope="batch", budget_window_id="window"
-            )
-            self.assertEqual(transport.post_intraday(b"{}"), response)
-            executor.assert_called_once()
-        self.assertEqual(budget.snapshot("batch", "window").consumed, 1)
+        with self.assertRaises(ValueError):
+            budget.configure("", "window", 5)
+        with self.assertRaises(ValueError):
+            budget.configure("batch", "", 5)
+        with self.assertRaises(ValueError):
+            budget.configure("batch", "window", -1)
 
-    def test_each_failed_outbound_attempt_consumes_one_budget_unit(self) -> None:
-        budget = RequestBudget(self.db_path)
-        budget.configure("batch", "window", 2)
-        with patch("dhan_lean.data.transport._default_executor", side_effect=TransportError("offline")):
-            transport = DhanHttpTransport(
-                "token", request_budget=budget, budget_scope="batch", budget_window_id="window"
-            )
-            for _ in range(2):
-                with self.assertRaises(TransportError):
-                    transport.post_intraday(b"{}")
-        self.assertEqual(budget.snapshot("batch", "window").consumed, 2)
-        with patch("dhan_lean.data.transport._default_executor") as executor:
-            with self.assertRaises(RequestBudgetExceeded):
-                transport.post_intraday(b"{}")
-            executor.assert_not_called()
+        budget.configure("batch", "window", 5)
+        with self.assertRaises(ValueError):
+            budget.consume("batch", "window", 0)
+        with self.assertRaises(ValueError):
+            budget.consume("batch", "window", -1)
+
+    def test_missing_parent_directory_raises_state_error(self) -> None:
+        missing_dir = Path(self.tmp.name) / "nonexistent" / "budget.db"
+        with self.assertRaises(RequestBudgetStateError):
+            RequestBudget(missing_dir)
 
 
 if __name__ == "__main__":

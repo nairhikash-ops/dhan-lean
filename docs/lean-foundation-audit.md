@@ -1,3 +1,5 @@
+> Historical pre-retirement record (non-active): retained for LEAN foundation provenance; it does not describe current provider dependencies.
+
 # LEAN Foundation Audit
 
 > Created: 2026-07-21

@@ -18,7 +18,7 @@ COPY ./DataLibraries /Lean/Launcher/bin/Debug/
 # Copy global metadata databases explicitly without bundling sample price history archives
 COPY ./Lean/Data/market-hours/ /Lean/Data/market-hours/
 COPY ./Lean/Data/symbol-properties/ /Lean/Data/symbol-properties/
-# Note: Temporary Dhan/LEAN exports will later be mounted under /Lean/Data/equity/india.
+# Note: Temporary provider-normalized LEAN exports may be mounted under /Lean/Data/equity/india.
 # The complete /Lean/Data directory must not be replaced by a bind mount because that would hide global metadata.
 RUN mkdir -p /Lean/Data/equity/india/minute /Lean/Data/equity/india/daily /Lean/Data/equity/india/map_files /Lean/Data/equity/india/factor_files
 COPY ./Lean/Launcher/bin/Debug/ /Lean/Launcher/bin/Debug/

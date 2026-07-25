@@ -51,9 +51,9 @@ def _guarded_urlopen(url, *args, **kwargs):
     return _original_urlopen(url, *args, **kwargs)
 
 
-if not getattr(socket.socket.connect, "_dhan_test_guard", False):
-    _guarded_socket_connect._dhan_test_guard = True
-    _guarded_socket_connect_ex._dhan_test_guard = True
+if not getattr(socket.socket.connect, "_offline_test_guard", False):
+    _guarded_socket_connect._offline_test_guard = True
+    _guarded_socket_connect_ex._offline_test_guard = True
     socket.socket.connect = _guarded_socket_connect
     socket.socket.connect_ex = _guarded_socket_connect_ex
     urllib.request.urlopen = _guarded_urlopen
