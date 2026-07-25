@@ -1,3 +1,5 @@
+> Historical pre-retirement record (non-active): retained for LEAN version provenance; it does not describe current provider dependencies.
+
 # LEAN Version Matrix
 
 > Created: 2026-07-21

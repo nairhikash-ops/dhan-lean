@@ -1,3 +1,5 @@
+> Historical pre-retirement record (non-active): retained for LEAN environment provenance; it does not describe current provider dependencies.
+
 # Fresh Server Environment Verification Report (Completed Infrastructure)
 
 ## Generated: 2026-07-21

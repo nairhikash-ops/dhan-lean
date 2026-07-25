@@ -1,123 +1,19 @@
 # dhan-lean
 
-A controlled Python environment for systematic trading research using
-[Dhan](https://dhan.co) as the authoritative historical-data source and
-[LEAN](https://lean.io) (QuantConnect) as the backtesting engine, deployed to a
-dedicated VPS runtime.
+This repository currently provides an offline market-data pipeline for LEAN backtests.
 
----
-
-## Project Purpose
-
-| Component | Role |
-|-----------|------|
-| **Dhan** | Authoritative source for Indian equity historical data via the `dhanhq` Python SDK |
-| **LEAN** | Backtesting engine — QuantConnect's open-source framework running on VPS |
-| **VPS** | Controlled, isolated runtime for all live and backtesting execution |
-
-Dhan-to-LEAN compatibility has **not yet been proven**. The current phase is
-environment preparation and reference hardening.
-
----
-
-## Prerequisites & LEAN Build Sequence
-
-### 1. Prerequisites
-- **Git CLI**
-- **.NET 10 SDK** (`targetFramework: net10.0` required by LEAN C# projects).
-  - Verify installed SDKs: `dotnet --list-sdks` (must show `10.x.x`).
-  - *Note:* Docker alone is **not** sufficient for local bootstrapping because the canonical `Dockerfile` copies host-compiled debug build output (`COPY ./Lean/Launcher/bin/Debug/ ...`) into the container.
-
-### 2. Setup Sequence
-```powershell
-# Windows PowerShell:
-.\scripts\bootstrap-lean.ps1
-
-# Linux / Ubuntu:
-./scripts/bootstrap-lean.sh
-
-# Prepare local runtime configuration from example template
-cp lean_config.example.json lean_config.json
-
-# Build local LEAN Docker image
-docker build -t dhan-lean:pinned .
+```text
+source adapter -> normalized bars -> validation -> planning / ledger / execution -> LEAN ZIP data
 ```
 
----
+Providers must normalize payloads into immutable `NormalizedBar` values before calling generic pipeline code. The project has no active brokerage, credential, network, or live-execution integration. A separate Zerodha authentication service exists outside this repository and is not connected to LEAN execution.
 
-## Current Phase: Environment Preparation
+The converter writes India equity minute data in LEAN's CSV-in-ZIP format through `convert_minute_bars_to_lean`. It uses `Decimal` price scaling, timezone-aware bars, deterministic ZIP member names, and collision-safe publication.
 
-- [x] Dhan agent skill installed
-- [x] Official Dhan API v2 documentation export added
-- [x] Stable DhanHQ-py v2.2.0 reference checkout committed
-- [x] Pre-release DhanHQ-py main reference checkout committed
-- [x] SDK version matrix completed
-- [x] Git baseline established & reproducible LEAN bootstrap created
-- [ ] Install .NET 10 SDK on host & verify LEAN bootstrap
-- [ ] LEAN installation verification (local minimal backtest PoC)
-- [ ] Dhan → LEAN data bridge (not yet designed)
-- [ ] Live credentials (not committed — never will be)
-- [ ] Trading strategy (not yet designed)
+The repository name and Python package remain unchanged temporarily. Retired-provider history is preserved by Git tag `dhan-capable-2026-07-25`; the active checkout contains no provider runtime or credentials.
 
----
+Run the offline tests with:
 
-## SDK Target
-
-| Attribute | Value |
-|-----------|-------|
-| Package | `dhanhq` |
-| Stable version | `2.2.0` |
-| Python requirement | `>=3.10` |
-| Pre-release reference | `2.3.0rc1` (read-only, do not use in production) |
-
-All implementation code must target `dhanhq==2.2.0` unless an upgrade is
-explicitly approved. See [`docs/dhan-sdk-version-matrix.md`](docs/dhan-sdk-version-matrix.md)
-for the full version comparison and difference classifications.
-
----
-
-## Repository Layout
-
+```text
+.venv\Scripts\python.exe -B -m unittest discover -s tests -t . -q
 ```
-dhan-lean/
-│
-├── AGENTS.md                          # Agent rules — evidence, precedence, security
-├── README.md                          # This file
-├── Dockerfile                         # Canonical LEAN Dockerfile
-├── lean_config.example.json           # Template configuration file for LEAN engine
-│
-├── scripts/
-│   └── bootstrap-lean.ps1            # Reproducible LEAN checkout, patch, and build script
-│
-├── patches/
-│   └── lean/
-│       ├── README.md                  # Explanation of LEAN patches
-│       └── Market.cs                  # Custom Market.India definition patch
-│
-├── .agents/
-│   └── skills/dhanhq/                 # Installed Dhan agent skill
-│
-├── docs/                              # Project documentation & runbooks
-│
-└── references/                        # SDK reference snapshots
-```
-
----
-
-## Security and Credential Policy
-
-- **No credentials, tokens, access keys, PINs, or TOTP secrets are committed.**
-- No `.env` files are committed. `.env` and `.env.*` are in `.gitignore`.
-- No live-order code exists in this repository.
-- See [`AGENTS.md`](AGENTS.md) for the full credential and security rules.
-
----
-
-## Key Reference Documents
-
-| Document | Purpose |
-|----------|---------|
-| [`AGENTS.md`](AGENTS.md) | Agent operating rules, evidence classification, security policy, SDK targeting rule |
-| [`docs/PROJECT_BLUEPRINT.md`](docs/PROJECT_BLUEPRINT.md) | Durable repository blueprint and current architecture |
-| [`docs/AGENT_HANDOFF.md`](docs/AGENT_HANDOFF.md) | Operational handoff and current project state |
-| [`docs/dhan-sdk-version-matrix.md`](docs/dhan-sdk-version-matrix.md) | Comparison of stable v2.2.0 vs pre-release v2.3.0rc1 |

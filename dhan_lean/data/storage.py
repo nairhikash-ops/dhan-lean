@@ -35,11 +35,11 @@ def _validate_path_component(component: str, name: str) -> str:
 def build_raw_artifact_path(
     *,
     storage_root: Path,
-    provider: str,
-    exchange_segment: str,
-    instrument: str,
+    source_id: str,
+    venue: str,
+    data_kind: str,
     symbol: str,
-    security_id: str,
+    instrument_id: str,
     resolution: str,
     session_date: date,
 ) -> Path:
@@ -50,18 +50,18 @@ def build_raw_artifact_path(
     if type(session_date) is not date:
         raise TypeError(f"session_date must be an exact datetime.date instance (got {type(session_date).__name__})")
 
-    clean_provider = _validate_path_component(provider, "provider").lower()
-    clean_exchange = _validate_path_component(exchange_segment, "exchange_segment").lower()
-    clean_instrument = _validate_path_component(instrument, "instrument").lower()
+    clean_source_id = _validate_path_component(source_id, "source_id").lower()
+    clean_venue = _validate_path_component(venue, "venue").lower()
+    clean_data_kind = _validate_path_component(data_kind, "data_kind").lower()
     clean_symbol = _validate_path_component(symbol, "symbol").upper()
-    clean_sec_id = _validate_path_component(security_id, "security_id")
+    clean_instrument_id = _validate_path_component(instrument_id, "instrument_id")
     clean_resolution = _validate_path_component(resolution, "resolution").lower()
 
     year_str = f"{session_date.year:04d}"
     month_str = f"{session_date.month:02d}"
     day_str = f"{session_date.day:02d}"
 
-    rel_path = Path("raw") / clean_provider / clean_exchange / clean_instrument / clean_symbol / clean_sec_id / clean_resolution / year_str / month_str / day_str
+    rel_path = Path("raw") / clean_source_id / clean_venue / clean_data_kind / clean_symbol / clean_instrument_id / clean_resolution / year_str / month_str / day_str
 
     target_dir = Path(storage_root) / rel_path
     return target_dir
@@ -69,11 +69,11 @@ def build_raw_artifact_path(
 
 def build_raw_artifact_dir(
     storage_root: Union[str, Path],
-    provider: str,
-    exchange_segment: str,
-    instrument: str,
+    source_id: str,
+    venue: str,
+    data_kind: str,
     symbol: str,
-    security_id: str,
+    instrument_id: str,
     resolution: str,
     session_date: date,
 ) -> Path:
@@ -82,17 +82,17 @@ def build_raw_artifact_dir(
     Does NOT create the directory on disk.
 
     Enforces casing:
-    - provider, exchange_segment, instrument: lowercase
+    - source_id, venue, data_kind: lowercase
     - symbol: uppercase
     """
     root_path = Path(storage_root).resolve()
     target_dir = build_raw_artifact_path(
         storage_root=root_path,
-        provider=provider,
-        exchange_segment=exchange_segment,
-        instrument=instrument,
+        source_id=source_id,
+        venue=venue,
+        data_kind=data_kind,
         symbol=symbol,
-        security_id=security_id,
+        instrument_id=instrument_id,
         resolution=resolution,
         session_date=session_date,
     ).resolve()
@@ -107,13 +107,13 @@ def build_raw_artifact_dir(
 
 class ArtifactWriter:
     """
-    Persists immutable Dhan historical API artifacts to disk.
+    Persists immutable source artifacts to disk.
     Executes exclusive creation (never overwrites existing files).
     Enforces 0700 directory permissions and 0600 file permissions on POSIX.
     """
 
     _RUN_ID_REGEX = re.compile(r'^\d{8}T\d{6}Z$')
-    _CREDENTIAL_KEYS = {"access-token", "client-id", "dhan_access_token", "dhan_client_id", "password", "secret", "token"}
+    _CREDENTIAL_KEYS = {"access-token", "client-id", "password", "secret", "token"}
 
     def _verify_valid_run_id(self, run_id: str) -> None:
         """Validates run_id against format YYYYMMDDTHHMMSSZ and real calendar dates."""
@@ -171,7 +171,7 @@ class ArtifactWriter:
                 raise FileExistsError(f"Target artifact file already exists: {target_path}")
         return targets
 
-    def write_pilot_artifacts(
+    def write_source_artifacts(
         self,
         output_dir: Path,
         run_id: str,
@@ -182,7 +182,7 @@ class ArtifactWriter:
         validation_result: ValidationResult,
     ) -> Mapping[str, Path]:
         """
-        Writes the 6 standard pilot artifacts exclusively.
+        Writes the six standard source artifacts exclusively.
         Raises FileExistsError if any target file already exists.
         """
         if not isinstance(http_status, int) or isinstance(http_status, bool):
@@ -213,27 +213,17 @@ class ArtifactWriter:
         status_bytes = f"{http_status}\n".encode('utf-8')
 
         val_lines = [
-            "--- DHAN HISTORICAL PILOT VALIDATION REPORT ---",
+            "--- SOURCE ARTIFACT VALIDATION REPORT ---",
             f"IS_VALID={validation_result.is_valid}",
             f"ERRORS={list(validation_result.errors)}",
-            f"CANDLE_COUNT={validation_result.candle_count}",
-            f"ARRAY_LENGTHS={dict(validation_result.array_lengths)}",
-            f"ARRAYS_EQUAL_LENGTH={validation_result.arrays_equal_length}",
+            f"BAR_COUNT={validation_result.bar_count}",
             f"TIMESTAMPS_STRICTLY_INCREASING={validation_result.timestamps_strictly_increasing}",
             f"DUPLICATE_TIMESTAMP_COUNT={validation_result.duplicate_timestamp_count}",
             f"NON_INCREASING_TIMESTAMP_COUNT={validation_result.non_increasing_timestamp_count}",
             f"INVALID_OHLC_COUNT={validation_result.invalid_ohlc_count}",
             f"NON_POSITIVE_PRICE_COUNT={validation_result.non_positive_price_count}",
             f"NEGATIVE_VOLUME_COUNT={validation_result.negative_volume_count}",
-            f"ZERO_VOLUME_COUNT={validation_result.zero_volume_count}",
             f"TIMESTAMP_DELTA_DISTRIBUTION={dict(validation_result.timestamp_delta_distribution)}",
-            f"MISSING_GAP_COUNT={validation_result.missing_gap_count}",
-            f"LARGEST_ACTUAL_INTERVAL_SECONDS={validation_result.largest_actual_interval_seconds}",
-            f"LARGEST_EXCESS_GAP_SECONDS={validation_result.largest_excess_gap_seconds}",
-            f"FIRST_TIMESTAMP_UTC={validation_result.first_timestamp_utc}",
-            f"LAST_TIMESTAMP_UTC={validation_result.last_timestamp_utc}",
-            f"FIRST_TIMESTAMP_IST={validation_result.first_timestamp_ist}",
-            f"LAST_TIMESTAMP_IST={validation_result.last_timestamp_ist}",
         ]
         val_bytes = ("\n".join(val_lines) + "\n").encode('utf-8')
 

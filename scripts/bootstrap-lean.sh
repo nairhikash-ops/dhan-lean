@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Dhan-LEAN Foundation Bootstrap Script (Linux / Bash)
+# Offline LEAN Foundation Bootstrap Script (Linux / Bash)
 # =============================================================================
 # Verifies local prerequisites (.NET 10 SDK, Git, patch files) before cloning
 # or modifying the vendored LEAN repository. Aligns QuantConnect/Lean to
@@ -24,7 +24,7 @@ TARGET_MARKET_CS="${LEAN_DIR}/Common/Market.cs"
 DATALIBRARIES_DIR="${REPO_ROOT}/DataLibraries"
 SLN_PATH="${LEAN_DIR}/QuantConnect.Lean.sln"
 
-echo "=== Dhan-LEAN Foundation Bootstrap (Linux) ==="
+echo "=== Offline LEAN Foundation Bootstrap (Linux) ==="
 
 # ---------------------------------------------------------------------------
 # 1. Prerequisite Validation (Cheap Checks Before Heavy Operations)

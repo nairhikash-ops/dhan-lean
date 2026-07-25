@@ -1,5 +1,17 @@
 # Dhan Lean — Project Blueprint
 
+> Historical project name retained temporarily. Active architecture is provider-neutral and offline-only.
+
+## Retirement and active scope (2026-07-25)
+
+The previous provider runtime was retired and archived. The active repository accepts normalized bars from future offline adapters, validates them, tracks work through a SQLite ledger, and converts bars into LEAN minute ZIP data. No brokerage API, credential management, network ingestion, or live trading is part of the active implementation. Zerodha authentication exists separately and is not wired into this execution path.
+
+The current offline suite contains 13 tests. The archival tag `dhan-capable-2026-07-25` retains the retired implementation and historical evidence.
+
+## Historical pre-retirement record (non-active)
+
+Everything below this heading records the project state before the 2026-07-25 retirement. It is retained only as historical context; it does not describe current dependencies, supported commands, or runtime behavior.
+
 - Last verified date and time: 2026-07-21 22:43:00 +05:30
 - Repository path: D:\Hikash Development\dhan-lean
 - Current branch: feature/lean-foundation
@@ -243,8 +255,8 @@ The following commands were verified from repository evidence and local Git stat
 
 - Repository documentation and Git inspection were verified during this task.
 - On 2026-07-25, Python 3.14.6 ran the project-owned `tests/` suite with
-  160 passing tests and no failures, skips, or errors, including focused
-  request-budget and network-guard tests.
+  181 passing tests and no failures, skips, or errors, including 19 focused
+  LEAN minute-data converter tests.
 - LEAN runtime execution remains unverified because of the Docker runtime issue.
 
 ### Validation gaps
@@ -257,6 +269,14 @@ The following commands were verified from repository evidence and local Git stat
   explicit budget configuration; injected transport executors are test seams.
 - SQLite transaction control uses `isolation_level=None` and explicit
   `BEGIN IMMEDIATE`/`COMMIT`/`ROLLBACK`, compatible with Python 3.10+.
+- LEAN minute-bar format conversion is source-verified against pinned LEAN
+  commit `1fee999e4f437d09e255be5c3fde783206e05389` and tested offline with 19
+  unit tests including `os.link` exclusive publication, integer-safe epoch normalization,
+  semantic timestamp-key comparison, and safe Decimal parsing; loading converted ZIP
+  artifacts into LEAN engine will be tested in a subsequent task.
+
+
+
 
 ## 14. Known issues and technical debt
 

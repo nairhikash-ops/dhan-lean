@@ -1,3 +1,5 @@
+> Historical pre-retirement record (non-active): retained for LEAN build provenance; it does not describe current provider dependencies.
+
 # LEAN Engine Build Pin
 
 > Created: 2026-07-21

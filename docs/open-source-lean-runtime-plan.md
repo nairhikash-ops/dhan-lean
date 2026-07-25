@@ -1,3 +1,5 @@
+> Historical pre-retirement record (non-active): retained for LEAN runtime provenance; it does not describe current provider dependencies.
+
 # Open-Source LEAN Runtime Plan (Corrected)
 
 > Created: 2026-07-21

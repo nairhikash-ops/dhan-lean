@@ -1,3 +1,5 @@
+> Historical pre-retirement record (non-active): retained for source provenance; it does not describe current provider dependencies.
+
 # Source Provenance
 
 > Created: 2026-07-21
