@@ -72,6 +72,10 @@ class InconsistentBrokerResponseError(ZerodhaRetryError):
     pass
 
 
+class AttemptObserverError(ZerodhaRetryError):
+    pass
+
+
 def _duration(value: object, name: str) -> timedelta:
     if isinstance(value, bool) or not isinstance(value, timedelta):
         raise InvalidRetryPolicyError(f"{name} must be a timedelta")
@@ -264,6 +268,15 @@ def _attempt_from_response(number: int, request_id: str, fingerprint: str, respo
     return AttemptRecord(number, request_id, fingerprint, True, response.broker_request_id, response.transport_status.value, response.provider_http_status, response.session_state.value, code, response.body_length, response.body_sha256, retry, delay, bool(code and error_policy(code).reauthentication_required))
 
 
+def _observe(observer: Callable[[AttemptRecord, Optional[BrokerResponse]], None] | None, record: AttemptRecord, response: Optional[BrokerResponse]) -> None:
+    if observer is None:
+        return
+    try:
+        observer(record, response)
+    except Exception:
+        raise AttemptObserverError("attempt observer failed") from None
+
+
 def run_planned_request(
     planned_request: ZerodhaPlannedRequest,
     broker: HistoricalBroker,
@@ -271,6 +284,7 @@ def run_planned_request(
     retry_policy: RetryPolicy,
     request_id_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
     jitter_source: Callable[[int], object] = lambda _number: timedelta(0),
+    attempt_observer: Callable[[AttemptRecord, Optional[BrokerResponse]], None] | None = None,
 ) -> BudgetedBrokerResult:
     """Admit and run attempts immediately; this function never sleeps."""
     if not isinstance(planned_request, ZerodhaPlannedRequest):
@@ -296,7 +310,8 @@ def run_planned_request(
         try:
             request_budget.consume(retry_policy.budget_scope, retry_policy.budget_window_id)
         except RequestBudgetExceeded:
-            history.append(AttemptRecord(number, request_id, planned_request.fingerprint, False))
+            record = AttemptRecord(number, request_id, planned_request.fingerprint, False)
+            history.append(record)
             return BudgetedBrokerResult(tuple(history), "BUDGET_EXHAUSTED", None, planned_request.fingerprint, used, True, False, False, False, next_delay)
         except Exception:
             raise BudgetConfigurationError("request budget could not admit the attempt") from None
@@ -310,6 +325,7 @@ def run_planned_request(
             delay = calculate_retry_delay(retry_policy, number, jitter_source=jitter_source) if permitted else None
             record = AttemptRecord(number, request_id, planned_request.fingerprint, True, error_code=code, retry_permitted=permitted, next_delay=delay, reauthentication_required=exc.policy.reauthentication_required)
             history.append(record)
+            _observe(attempt_observer, record, None)
             if not permitted:
                 return BudgetedBrokerResult(tuple(history), code.value, None, planned_request.fingerprint, used, False, attempt_limit, exc.policy.reauthentication_required, False, None)
             next_delay = delay
@@ -323,7 +339,9 @@ def run_planned_request(
         permitted = bool(code and error_policy(code).retryable and code in RETRYABLE_CODES and number < retry_policy.maximum_attempts)
         attempt_limit = bool(code and error_policy(code).retryable and code in RETRYABLE_CODES and number >= retry_policy.maximum_attempts)
         delay = calculate_retry_delay(retry_policy, number, retry_after_seconds=response.retry_after_seconds, jitter_source=jitter_source) if permitted else None
-        history.append(_attempt_from_response(number, request_id, planned_request.fingerprint, response, delay=delay, retry=permitted))
+        record = _attempt_from_response(number, request_id, planned_request.fingerprint, response, delay=delay, retry=permitted)
+        history.append(record)
+        _observe(attempt_observer, record, response)
         if success:
             return BudgetedBrokerResult(tuple(history), "SUCCESS", response, planned_request.fingerprint, used, False, False, False, True, None)
         if not permitted:

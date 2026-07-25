@@ -12,16 +12,23 @@ error-policy metadata. Approved retries use pure deterministic backoff and do
 not sleep. Every attempt shares one explicit `(scope, window_id)` budget
 identity. Attempt histories and final results are immutable and redact raw
 provider bytes from summaries. No network, authentication, session access,
-live data, artifact writing, downloader integration, or trading is active. No
+live data, downloader integration, or trading is active. Offline raw artifact
+writing and redaction integration is active through
+`dhan_lean/providers/zerodha/artifacts.py`; it only uses the deterministic fake
+broker and stores immutable, hash-manifested raw evidence. Publication uses
+isolated staging directories and atomic non-overwriting final-directory
+publication; incomplete staging state is never treated as a final artifact. No
 Unix-socket client or broker service exists yet; the request-budget and retry
-orchestration currently operate only through the protocol and fake-broker
-seam, with no live Zerodha request.
+orchestration currently operate only through the protocol and fake-broker seam,
+with no live Zerodha request. Unix-socket transport, broker service,
+`OfflineDownloader`, `StateLedger`, and LEAN conversion remain unimplemented
+for this provider phase.
 
 ## Retirement and active scope (2026-07-25)
 
 The previous provider runtime was retired and archived. The active repository accepts normalized bars from future offline adapters, validates them, tracks work through a SQLite ledger, and converts bars into LEAN minute ZIP data. No brokerage API, credential management, network ingestion, or live trading is part of the active implementation. Zerodha authentication exists separately and is not wired into this execution path.
 
-The current offline suite contains 13 tests. The archival tag `dhan-capable-2026-07-25` retains the retired implementation and historical evidence.
+The current project-owned offline suite contains 215 passing tests and one platform-limited symlink skip. The archival tag `dhan-capable-2026-07-25` retains the retired implementation and historical evidence.
 
 ## Historical pre-retirement record (non-active)
 

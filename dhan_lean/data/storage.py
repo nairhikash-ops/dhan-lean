@@ -1,14 +1,34 @@
 import os
 import re
 import hashlib
+import json
+import shutil
+import time
+import uuid
 from datetime import date, datetime
 from pathlib import Path
+from pathlib import PureWindowsPath
 from types import MappingProxyType
-from typing import Union, Any, Mapping
+from typing import Union, Any, Mapping, Iterable
 
 from dhan_lean.data.models import ValidationResult
 
 _FORBIDDEN_PATH_CHARS = re.compile(r'[\x00-\x1f\x7f\\:*?"<>|]')
+_WINDOWS_RESERVED_NAMES = frozenset({"CON", "PRN", "AUX", "NUL", *(f"COM{n}" for n in range(1, 10)), *(f"LPT{n}" for n in range(1, 10))})
+
+
+def _validate_bundle_filename(name: object) -> str:
+    """Return one cross-platform-safe regular filename or raise ValueError."""
+    if not isinstance(name, str) or not name or name in {".", ".."}:
+        raise ValueError("bundle filename is invalid")
+    if name[-1] in {".", " "} or "/" in name or "\\" in name or _FORBIDDEN_PATH_CHARS.search(name):
+        raise ValueError("bundle filename is unsafe")
+    windows = PureWindowsPath(name)
+    if windows.is_absolute() or windows.drive or windows.root or Path(name).name != name:
+        raise ValueError("bundle filename is not a single relative name")
+    if name.split(".", 1)[0].upper() in _WINDOWS_RESERVED_NAMES:
+        raise ValueError("bundle filename is a reserved device name")
+    return name
 
 
 def _validate_path_component(component: str, name: str) -> str:
@@ -272,3 +292,105 @@ class ArtifactWriter:
             raise e
 
         return target_map
+
+    def write_immutable_bundle(self, output_dir: Path, files: Mapping[str, bytes], *, screened_names: Iterable[str] = (), _failure_injector: Any = None) -> Mapping[str, Path]:
+        """Stage and atomically publish a named immutable file bundle.
+
+        The final directory is created only by a non-overwriting rename after
+        every payload and the completion manifest have been flushed in a unique
+        sibling staging directory.
+        """
+        if not isinstance(files, Mapping) or not files:
+            raise ValueError("files must map safe regular file names to bytes")
+        try:
+            names = tuple(_validate_bundle_filename(name) for name in files)
+        except ValueError:
+            raise ValueError("files must map safe regular file names to bytes") from None
+        if len(set(names)) != len(names) or any(not isinstance(content, bytes) for content in files.values()):
+            raise ValueError("files must map safe regular file names to bytes")
+        manifest_name = "manifest.json"
+        if manifest_name in names:
+            raise ValueError("manifest.json is reserved")
+        for name in screened_names:
+            if name not in files:
+                raise ValueError("screened file is not in bundle")
+            self._verify_no_credentials(files[name], name)
+
+        manifest = {"files": {name: {"length": len(files[name]), "sha256": hashlib.sha256(files[name]).hexdigest()} for name in sorted(names)}}
+        manifest_bytes = (json.dumps(manifest, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+        target_dir = Path(output_dir)
+        if not target_dir.name or target_dir.name in {".", ".."}:
+            raise ValueError("output directory is invalid")
+        parent = target_dir.parent
+        # Keep this compact: deep provider paths must also work on Windows.
+        staging = parent / f".tmp-{uuid.uuid4().hex}"
+        lock = parent / f".lock-{target_dir.name}"
+        lock_created = False
+
+        def inject(stage: str) -> None:
+            if _failure_injector is not None:
+                _failure_injector(stage)
+
+        def sync_directory(path: Path) -> None:
+            if os.name == "posix":
+                descriptor = os.open(path, os.O_RDONLY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+
+        try:
+            parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+            staging.mkdir(mode=0o700)
+            if os.name == "posix":
+                os.chmod(staging, 0o700)
+            inject("after_staging_directory")
+            for index, name in enumerate(sorted(names), start=1):
+                staged = staging / name
+                with open(staged, "xb") as handle:
+                    handle.write(files[name])
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                if os.name == "posix":
+                    os.chmod(staged, 0o600)
+                actual = staged.read_bytes()
+                if len(actual) != len(files[name]) or hashlib.sha256(actual).hexdigest() != manifest["files"][name]["sha256"]:
+                    raise OSError("staged bundle payload verification failed")
+                if index == 1:
+                    inject("after_first_payload")
+            inject("before_manifest")
+            with open(staging / manifest_name, "xb") as handle:
+                handle.write(manifest_bytes)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if os.name == "posix":
+                os.chmod(staging / manifest_name, 0o600)
+            sync_directory(staging)
+            inject("after_manifest")
+            deadline = time.monotonic() + 5.0
+            while True:
+                try:
+                    descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                    os.close(descriptor)
+                    lock_created = True
+                    break
+                except FileExistsError:
+                    if target_dir.exists() or time.monotonic() >= deadline:
+                        raise FileExistsError("immutable bundle destination already exists") from None
+                    time.sleep(0.005)
+            if target_dir.exists():
+                raise FileExistsError("immutable bundle destination already exists")
+            inject("before_final_rename")
+            os.rename(staging, target_dir)
+            sync_directory(parent)
+        except Exception:
+            if staging.exists():
+                shutil.rmtree(staging, ignore_errors=True)
+            raise
+        finally:
+            if lock_created:
+                try:
+                    lock.unlink()
+                except OSError:
+                    pass
+        return MappingProxyType({**{name: target_dir / name for name in names}, manifest_name: target_dir / manifest_name})

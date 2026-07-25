@@ -1,5 +1,18 @@
 # Agent Handoff
 
+## Zerodha Phase 2B.4 raw-artifact and redaction checkpoint (2026-07-26)
+
+- Added offline-only artifact orchestration in `dhan_lean/providers/zerodha/artifacts.py`.
+- `execute_and_publish` runs the existing deterministic fake-broker/retry seam and observes each admitted attempt without adding raw bytes to `AttemptRecord` or `BudgetedBrokerResult`.
+- Artifacts use `raw/zerodha/{venue}/historical/{symbol}/{provider_instrument_id}/minute/{YYYY}/{MM}/{DD}/{request_fingerprint}/attempt-{number}-{request_id}/` and are published through the reusable immutable `ArtifactWriter.write_immutable_bundle` boundary.
+- Metadata is strict allowlist JSON, uses `provider_instrument_id`, rejects credential-like keys case-insensitively, and never serializes request IPC mappings, credentials, URLs, session paths, or raw exception text. Raw provider bytes are stored separately as `response-body.bin` byte-for-byte with length/hash verification.
+- Successful 2xx bodies are passed unchanged to the existing Zerodha parser and normalized-bar validator. Empty candles preserve raw evidence, parse successfully, and receive the existing `EMPTY_BARS` validation outcome. Provider errors and malformed bodies preserve evidence without unsafe summaries.
+- Manifest publication is exclusive and cleaned on failure. Replays verify every file and canonical manifest hash; identical attempts are reused, conflicting bytes/metadata fail closed, and incomplete sets are reviewable typed failures. Retry attempts remain separate; budget-only/local-failure attempts publish metadata only.
+- Immutable bundles now write only to unique sibling staging directories, flush and hash-verify payloads, write the manifest last, then atomically rename under a scoped non-overwrite publication lock. A failed staging publication never creates or removes a final bundle directory.
+- Filename and path-component validation rejects traversal, separators, controls, trailing dots/spaces, drive/UNC forms, and Windows reserved device names. Replay rejects unexpected entries, directories, symlinks, special files, missing files, and manifest/payload changes. Per-attempt raw response evidence is mandatory when an attempt claims a body.
+- Focused Phase 2B.4 artifact tests: **13 passing, 1 symlink test skipped because this Windows environment cannot create symlinks**. Focused generic storage tests: **15/15 passing**. Full project-owned suite: **215 passing, 1 skipped**. `git diff --check` passed.
+- Phase 2B.4 remains offline and fake-broker-only: no live Zerodha request, session-file access, credentials, Unix socket, HTTP transport, broker service, `OfflineDownloader`, `StateLedger`, server/deployment change, trading, or LEAN conversion/integration was added. No commit or push was made.
+
 ## Zerodha Phase 2B.3 request-budget and retry checkpoint (2026-07-26)
 
 - Added offline-only provider orchestration in `dhan_lean/providers/zerodha/retry.py`.

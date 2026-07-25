@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import threading
 import unittest
 from datetime import date
 from pathlib import Path
@@ -11,6 +12,7 @@ from dhan_lean.data.models import ValidationResult
 from dhan_lean.data.storage import (
     ArtifactWriter,
     _validate_path_component,
+    _validate_bundle_filename,
     build_raw_artifact_dir,
     build_raw_artifact_path,
 )
@@ -208,6 +210,60 @@ class TestStorage(unittest.TestCase):
 
         # Confirm partial file was unlinked
         self.assertFalse((out_dir / "request-20260720T091500Z.json").exists())
+
+    def test_bundle_filenames_reject_cross_platform_escape_and_devices(self) -> None:
+        for name in ("", ".", "..", "../escape", "..\\escape", "/absolute", "C:\\escape", "\\\\server\\share", "CON", "con.txt", "NUL.json", "name.", "name ", "bad\x00name"):
+            with self.subTest(name=repr(name)), self.assertRaises(ValueError):
+                _validate_bundle_filename(name)
+        self.assertEqual(_validate_bundle_filename("response-body.bin"), "response-body.bin")
+
+    def test_bundle_stages_failures_without_incomplete_final_directory(self) -> None:
+        writer = ArtifactWriter()
+        target = self.storage_root / "bundle"
+        for stage in ("after_staging_directory", "after_first_payload", "before_manifest", "after_manifest", "before_final_rename"):
+            with self.subTest(stage=stage):
+                with self.assertRaises(RuntimeError):
+                    writer.write_immutable_bundle(target, {"one.json": b"{}", "two.bin": b"x"}, _failure_injector=lambda actual, expected=stage: (_ for _ in ()).throw(RuntimeError("injected")) if actual == expected else None)
+                self.assertFalse(target.exists())
+        written = writer.write_immutable_bundle(target, {"one.json": b"{}", "two.bin": b"x"})
+        self.assertTrue(written["manifest.json"].exists())
+        self.assertFalse(any(path.name.startswith(".tmp-") for path in target.parent.iterdir()))
+
+    def test_bundle_concurrent_publishers_leave_one_complete_final_bundle(self) -> None:
+        writer = ArtifactWriter()
+        target = self.storage_root / "concurrent"
+        barrier = threading.Barrier(2)
+        outcomes = []
+        def publish() -> None:
+            try:
+                writer.write_immutable_bundle(target, {"payload.bin": b"same"}, _failure_injector=lambda stage: barrier.wait(timeout=5) if stage == "after_manifest" else None)
+                outcomes.append("published")
+            except FileExistsError:
+                outcomes.append("exists")
+        threads = [threading.Thread(target=publish) for _ in range(2)]
+        for thread in threads: thread.start()
+        for thread in threads: thread.join(10)
+        self.assertEqual(sorted(outcomes), ["exists", "published"])
+        self.assertTrue((target / "manifest.json").is_file())
+        self.assertFalse(any(path.name.startswith(".tmp-") for path in target.parent.iterdir()))
+
+    def test_bundle_conflicting_publishers_never_overwrite_winner(self) -> None:
+        writer = ArtifactWriter()
+        target = self.storage_root / "conflicting"
+        barrier = threading.Barrier(2)
+        outcomes = []
+        def publish(body: bytes) -> None:
+            try:
+                writer.write_immutable_bundle(target, {"payload.bin": body}, _failure_injector=lambda stage: barrier.wait(timeout=5) if stage == "after_manifest" else None)
+                outcomes.append(("published", body))
+            except FileExistsError:
+                outcomes.append(("exists", body))
+        threads = [threading.Thread(target=publish, args=(body,)) for body in (b"first", b"second")]
+        for thread in threads: thread.start()
+        for thread in threads: thread.join(10)
+        self.assertEqual(sorted(item[0] for item in outcomes), ["exists", "published"])
+        winner = next(body for state, body in outcomes if state == "published")
+        self.assertEqual((target / "payload.bin").read_bytes(), winner)
 
 
 
