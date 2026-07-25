@@ -1,5 +1,16 @@
 # Agent Handoff
 
+## Zerodha Phase 2B.3 request-budget and retry checkpoint (2026-07-26)
+
+- Added offline-only provider orchestration in `dhan_lean/providers/zerodha/retry.py`.
+- `RetryPolicy` is immutable and requires explicit non-empty budget scope/window; defaults are 3 attempts, 1-second base, 30-second cap, 250ms jitter maximum, and 60-second maximum `Retry-After`.
+- Retry classification uses the Phase 2B.1 policy metadata and permits only `BROKER_UNAVAILABLE`, `BROKER_TIMEOUT`, `PROVIDER_429`, `PROVIDER_5XX`, `NETWORK_TIMEOUT`, and `DNS_TLS_CONNECTION_FAILURE`.
+- The runner constructs a fresh canonical UUID and immutable `CandleRequest`, then atomically consumes exactly one durable budget unit immediately before every fake-broker call. Retries share the same configured scope/window and never refund.
+- Backoff is pure and immediate: `max(min(cap, base * 2**(retry-1)) + deterministic jitter, bounded Retry-After)` for valid provider 429 metadata. No sleeping is implemented.
+- `AttemptRecord` and `BudgetedBrokerResult` are immutable and contain only safe metadata; raw body bytes are retained only on the final `BrokerResponse`, never in summaries or errors.
+- Focused Phase 2B.3 tests: **20/20 passing**. Full project-owned suite: **198/198 passing**. `git diff --check` passed.
+- Phase 2B.3 is offline-only: the protocol/fake-broker seam has no Unix-socket client or broker service yet, and has no live Zerodha request, session-file access, credentials, HTTP, artifact, `OfflineDownloader`, server, deployment, trading, or LEAN integration. No commit or push was made.
+
 ## Provider-neutral cleanup checkpoint (2026-07-25)
 
 - The retired provider runtime, credentials, and reference material were archived outside the repository before this source cleanup.
