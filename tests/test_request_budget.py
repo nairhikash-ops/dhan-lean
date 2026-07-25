@@ -87,6 +87,27 @@ class TestRequestBudget(unittest.TestCase):
         with self.assertRaises(RequestBudgetStateError):
             budget.configure("batch", "window", 3)
 
+    def test_begin_lock_failure_is_wrapped_without_rollback_masking(self) -> None:
+        budget = RequestBudget(self.db_path, sqlite_timeout_seconds=0.05)
+        budget.configure("batch", "window", 1)
+        transport = DhanHttpTransport(
+            "token", request_budget=budget, budget_scope="batch", budget_window_id="window"
+        )
+        lock_conn = sqlite3.connect(self.db_path, isolation_level=None)
+        try:
+            lock_conn.execute("BEGIN IMMEDIATE;")
+            with patch("dhan_lean.data.transport._default_executor") as executor:
+                with self.assertRaises(RequestBudgetStateError) as raised:
+                    transport.post_intraday(b"{}")
+                executor.assert_not_called()
+            self.assertIsInstance(raised.exception, RequestBudgetStateError)
+            self.assertNotIsInstance(raised.exception, sqlite3.OperationalError)
+            self.assertIsInstance(raised.exception.__cause__, sqlite3.OperationalError)
+            self.assertEqual(budget.snapshot("batch", "window").consumed, 0)
+        finally:
+            lock_conn.rollback()
+            lock_conn.close()
+
     def test_default_network_boundary_requires_budget_before_executor(self) -> None:
         with patch("dhan_lean.data.transport._default_executor") as executor:
             transport = DhanHttpTransport("token")

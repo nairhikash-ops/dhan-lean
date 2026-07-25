@@ -214,7 +214,8 @@ Commit and synchronize the private token-management service before deployment.
 - **Declared dependency**: `dhanhq==2.2.0` installed exactly; `pip check`
   reported no broken requirements.
 - **Project-owned tests**: `python -m unittest discover -s tests -t . -v`
-  ran **146/146 passing** (0 failures, 0 skipped, 0 errors) in 22.832s.
+  ran **160/160 passing** (0 failures, 0 skipped, 0 errors) in the latest
+  verified run; the earlier 146-test result is historical.
 - **Vendored/reference tests**: not included; discovery was explicitly scoped
   to the repository `tests/` directory.
 - **Lint/format**: no repository lint or formatting command/configuration was
@@ -233,10 +234,10 @@ Commit and synchronize the private token-management service before deployment.
 - Missing, malformed, conflicting, or inaccessible state fails closed with a
   clear `RequestBudgetStateError`; exhausted allowance raises
   `RequestBudgetExceeded` without mutation.
-- `execute_single_work_item` and `execute_batch` accept an explicit budget
-  guard while preserving existing call compatibility. Live batch testing
-  remains suspended; only offline tests were run.
-- Focused budget tests: **6/6 passing**, including reopen persistence,
+- Transport is the canonical budget-consumption boundary; executor and
+  coordinator do not consume allowance. Live batch testing remains suspended;
+  only offline tests were run.
+- Focused budget tests: **11/11 passing**, including reopen persistence,
   restart-equivalent observation, exact boundary, rejection immutability,
   concurrency, and corrupt-state fail-closed behavior.
 
@@ -254,7 +255,9 @@ Commit and synchronize the private token-management service before deployment.
   fails before the executor is called.
 - The default transport has no retry loop, so each outbound attempt consumes
   exactly one unit. Injected executors remain an intentional offline/test seam.
-- Focused network-boundary tests: **9/9 passing** (including mocked reachability,
+- SQLite uses explicit `BEGIN IMMEDIATE`/`COMMIT`/`ROLLBACK` with
+  `isolation_level=None`, preserving compatibility with Python 3.10+.
+- Focused network-boundary tests: **8/8 passing** (including mocked reachability,
   missing configuration, exhaustion, restart persistence, concurrency, and
   failed-attempt accounting). No further network calls were made after a
   fixture initially failed to intercept a transport executor; that accidental

@@ -53,8 +53,11 @@ class RequestBudget:
     explicit reset boundary; there is no implicit clock-based reset.
     """
 
-    def __init__(self, db_path: Union[str, Path]) -> None:
+    def __init__(self, db_path: Union[str, Path], sqlite_timeout_seconds: float = 30.0) -> None:
         self._db_path = Path(db_path)
+        if not isinstance(sqlite_timeout_seconds, (int, float)) or sqlite_timeout_seconds < 0:
+            raise ValueError("sqlite_timeout_seconds must be a non-negative number")
+        self._sqlite_timeout_seconds = float(sqlite_timeout_seconds)
         if not self._db_path.parent.exists():
             raise RequestBudgetStateError(
                 f"Budget database parent does not exist: {self._db_path.parent}"
@@ -63,7 +66,7 @@ class RequestBudget:
 
     def _connect(self) -> sqlite3.Connection:
         try:
-            conn = sqlite3.connect(self._db_path, timeout=30, autocommit=True)
+            conn = sqlite3.connect(self._db_path, timeout=self._sqlite_timeout_seconds, isolation_level=None)
             conn.execute("PRAGMA foreign_keys = ON;")
             return conn
         except (sqlite3.Error, OSError) as exc:
@@ -84,6 +87,15 @@ class RequestBudget:
             conn.close()
 
     @staticmethod
+    def _rollback_safely(conn: sqlite3.Connection, transaction_started: bool) -> None:
+        if not transaction_started:
+            return
+        try:
+            conn.execute("ROLLBACK;")
+        except sqlite3.Error:
+            pass
+
+    @staticmethod
     def _validate_identity(scope: str, window_id: str) -> None:
         if not isinstance(scope, str) or not scope.strip():
             raise ValueError("scope must be a non-empty string")
@@ -99,8 +111,10 @@ class RequestBudget:
         self._validate_identity(scope, window_id)
         self._validate_nonnegative_int(allowance, "allowance")
         conn = self._connect()
+        transaction_started = False
         try:
             conn.execute("BEGIN IMMEDIATE;")
+            transaction_started = True
             row = conn.execute(
                 "SELECT allowance, consumed FROM request_budgets WHERE scope = ? AND window_id = ?",
                 (scope, window_id),
@@ -122,10 +136,10 @@ class RequestBudget:
             conn.execute("COMMIT;")
             return RequestBudgetSnapshot(scope, window_id, allowance, consumed)
         except RequestBudgetError:
-            conn.execute("ROLLBACK;")
+            self._rollback_safely(conn, transaction_started)
             raise
         except sqlite3.Error as exc:
-            conn.execute("ROLLBACK;")
+            self._rollback_safely(conn, transaction_started)
             raise RequestBudgetStateError(f"Cannot configure request budget: {exc}") from exc
         finally:
             conn.close()
@@ -157,8 +171,10 @@ class RequestBudget:
         if type(amount) is not int or amount <= 0:
             raise ValueError("amount must be a positive integer")
         conn = self._connect()
+        transaction_started = False
         try:
             conn.execute("BEGIN IMMEDIATE;")
+            transaction_started = True
             row = conn.execute(
                 "SELECT allowance, consumed FROM request_budgets WHERE scope = ? AND window_id = ?",
                 (scope, window_id),
@@ -184,10 +200,10 @@ class RequestBudget:
             conn.execute("COMMIT;")
             return RequestBudgetSnapshot(scope, window_id, allowance, new_consumed)
         except RequestBudgetError:
-            conn.execute("ROLLBACK;")
+            self._rollback_safely(conn, transaction_started)
             raise
         except sqlite3.Error as exc:
-            conn.execute("ROLLBACK;")
+            self._rollback_safely(conn, transaction_started)
             raise RequestBudgetStateError(f"Cannot consume request budget: {exc}") from exc
         finally:
             conn.close()

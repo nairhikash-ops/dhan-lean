@@ -243,8 +243,8 @@ The following commands were verified from repository evidence and local Git stat
 
 - Repository documentation and Git inspection were verified during this task.
 - On 2026-07-25, Python 3.14.6 ran the project-owned `tests/` suite with
-  152 passing tests and no failures, skips, or errors, including six focused
-  request-budget tests.
+  160 passing tests and no failures, skips, or errors, including focused
+  request-budget and network-guard tests.
 - LEAN runtime execution remains unverified because of the Docker runtime issue.
 
 ### Validation gaps
@@ -255,6 +255,8 @@ The following commands were verified from repository evidence and local Git stat
   live Dhan API calls were made.
 - The default network executor is offline-verified to fail closed without
   explicit budget configuration; injected transport executors are test seams.
+- SQLite transaction control uses `isolation_level=None` and explicit
+  `BEGIN IMMEDIATE`/`COMMIT`/`ROLLBACK`, compatible with Python 3.10+.
 
 ## 14. Known issues and technical debt
 

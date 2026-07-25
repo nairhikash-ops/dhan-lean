@@ -10,6 +10,7 @@ from dhan_lean.data.executor import execute_single_work_item
 from dhan_lean.data.ledger import StateLedger
 from dhan_lean.data.downloader import DhanIntradayDownloader
 from dhan_lean.data.transport import DhanHttpTransport
+from dhan_lean.data.request_budget import RequestBudget
 from dhan_lean.data.models import (
     DownloadWorkItem,
     RequestWindow,
@@ -103,6 +104,14 @@ class TestExecutor(unittest.TestCase):
         self.assertEqual(res.attempt.state, "SUCCEEDED")
         self.assertIsNotNone(res.download_result)
         self.assertTrue(res.download_result.success)
+
+    def test_executor_does_not_consume_transport_budget(self) -> None:
+        budget = RequestBudget(self.db_path)
+        budget.configure("batch", "window", 1)
+        downloader = self._make_mock_downloader(success=True)
+        res = execute_single_work_item(self.ledger, downloader, self.sample_item.work_item_key)
+        self.assertEqual(res.status, "SUCCEEDED")
+        self.assertEqual(budget.snapshot("batch", "window").consumed, 0)
 
     def test_failed_execution(self) -> None:
         downloader = self._make_mock_downloader(success=False)

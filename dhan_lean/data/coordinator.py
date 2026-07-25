@@ -7,7 +7,6 @@ from dhan_lean.data.ledger import StateLedger
 from dhan_lean.data.downloader import DhanIntradayDownloader
 from dhan_lean.data.executor import execute_single_work_item
 from dhan_lean.data.models import SingleExecutionResult, ClaimStatus
-from dhan_lean.data.request_budget import RequestBudget
 
 
 @dataclass(frozen=True)
@@ -38,9 +37,6 @@ def execute_batch(
     stop_on_failure: bool = True,
     claim_owner: str = "batch_coordinator",
     lease_duration_seconds: int = 900,
-    request_budget: Optional[RequestBudget] = None,
-    budget_scope: str = "dhan_intraday",
-    budget_window_id: str = "default",
 ) -> BatchSummary:
     """
     Executes a batch of planned work items sequentially, enforcing request limits,
@@ -103,9 +99,6 @@ def execute_batch(
                 work_item_key=key,
                 claim_owner=claim_owner,
                 lease_duration_seconds=lease_duration_seconds,
-                request_budget=request_budget,
-                budget_scope=budget_scope,
-                budget_window_id=budget_window_id,
             )
             results.append(res)
 
