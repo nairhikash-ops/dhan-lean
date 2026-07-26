@@ -1,5 +1,37 @@
 # Agent Handoff
 
+## Zerodha Phase 2B.5 offline historical-adapter checkpoint (2026-07-26)
+
+- Added `dhan_lean/providers/zerodha/adapter.py`, an immutable provider-local
+  composition boundary for the full offline Zerodha historical flow.
+- The adapter resolves the exact instrument snapshot record, builds the
+  existing `ZerodhaPlanningInput` and deterministic `ZerodhaPlannedRequest`,
+  executes through `run_planned_request`, observes each admitted response,
+  publishes every eligible attempt through `publish_budgeted_result`, then
+  parses and validates only the final successful response.
+- Added typed `ZerodhaAdapterStatus`, immutable
+  `ZerodhaHistoricalAdapterInput`, and safe immutable
+  `ZerodhaHistoricalAdapterResult`. Results contain no raw response bytes,
+  credentials, session data, exception objects, or absolute paths. Successful
+  results require at least one validated normalized bar; empty responses,
+  malformed responses, provider failures, budget exhaustion, retry-limit
+  exhaustion, reauthentication, validation failure, and artifact failure are
+  distinct outcomes.
+- Planning and attempt request-ID factories are separate injected seams:
+  planning remains deterministic while every admitted retry receives a fresh
+  request ID. Artifact failure is terminal for the adapter and cannot cause a
+  retry or an additional broker call.
+- Phase 2B.5 focused tests: **8/8 passing**. Existing focused suites: planning
+  **18/18**, retry **20/20**, storage **15/15**, and artifacts **14 passing with
+  1 Windows symlink skip**. Full project-owned discovery is **224 passing, 1
+  skipped**. `git diff --check`
+  passed after documentation edits.
+- The deterministic fake broker remains the only broker implementation used.
+  No live Zerodha request, credentials/session access, socket, HTTP transport,
+  downloader, ledger, server, deployment, trading, LEAN conversion, commit, or
+  push occurred. `OfflineDownloader` and `StateLedger` integration remain
+  unimplemented.
+
 ## Zerodha Phase 2B.4 raw-artifact and redaction checkpoint (2026-07-26)
 
 - Added offline-only artifact orchestration in `dhan_lean/providers/zerodha/artifacts.py`.

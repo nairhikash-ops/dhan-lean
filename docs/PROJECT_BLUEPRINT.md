@@ -4,6 +4,18 @@
 
 ## Current offline Zerodha protocol checkpoint (2026-07-26)
 
+Phase 2B.5 now composes the complete offline Zerodha historical adapter flow:
+`DataWorkItem` resolution, deterministic planning, durable fake-broker budget
+and retry execution, per-attempt observation, mandatory immutable artifact
+publication, historical response parsing, and generic normalized-bar
+validation. A successful provider workflow returns only a non-empty tuple of
+validated `NormalizedBar` values. The deterministic fake broker remains the
+only broker implementation used; no live Zerodha request occurred. Unix-socket
+transport, the protected broker service, real Zerodha HTTP requests,
+`OfflineDownloader`, `StateLedger`, and LEAN conversion remain unimplemented.
+The focused Phase 2B.5 adapter suite has 8 passing tests; the full project-owned
+suite has 224 passing tests and one Windows-limited symlink skip.
+
 Phase 2B.3 adds provider-specific, offline request orchestration under
 `dhan_lean/providers/zerodha/`. A planned request is admitted through the
 existing durable SQLite `RequestBudget`, assigned a fresh request UUID per

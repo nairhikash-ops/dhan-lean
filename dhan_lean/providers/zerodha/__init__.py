@@ -85,6 +85,12 @@ from dhan_lean.providers.zerodha.artifacts import (
     publish_attempt_artifact,
     publish_budgeted_result,
 )
+from dhan_lean.providers.zerodha.adapter import (
+    ZerodhaAdapterStatus,
+    ZerodhaHistoricalAdapter,
+    ZerodhaHistoricalAdapterInput,
+    ZerodhaHistoricalAdapterResult,
+)
 
 __all__ = [
     "AmbiguousInstrumentError",
@@ -158,4 +164,8 @@ __all__ = [
     "execute_and_publish",
     "publish_attempt_artifact",
     "publish_budgeted_result",
+    "ZerodhaAdapterStatus",
+    "ZerodhaHistoricalAdapter",
+    "ZerodhaHistoricalAdapterInput",
+    "ZerodhaHistoricalAdapterResult",
 ]
