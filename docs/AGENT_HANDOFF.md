@@ -1,5 +1,43 @@
 # Agent Handoff
 
+## Zerodha Phase 2C.1 offline Unix-domain-socket checkpoint (2026-07-26)
+
+- Added `dhan_lean/providers/zerodha/unix_transport.py`: a provider-local,
+  one-request-per-connection `UnixHistoricalBrokerClient` and explicit
+  `UnixHistoricalBrokerServer` lifecycle for the existing length-prefixed
+  protocol. Both use only `AF_UNIX` when it is available.
+- The client reuses the existing `CandleRequest` / `BrokerResponse` schema,
+  4-byte big-endian JSON framing, strict base64 body representation, payload
+  limits, and typed broker errors. It maps unavailable sockets, timeouts, and
+  malformed peer data to the existing closed error model without exposing
+  paths, frames, bodies, or OS messages. It has no retry loop.
+- The server takes an injected `HistoricalBroker`; Phase 2C.1 tests inject
+  only `DeterministicFakeBroker`. It has bounded worker threads, exact frame
+  I/O, request/response correlation, safe malformed-client closure, safe
+  injected-exception responses, and owned-only stale-socket cleanup. Stale
+  cleanup is disabled by default; explicit opt-in requires an `ECONNREFUSED`
+  probe and unchanged socket device/inode identity before unlinking. Active,
+  ambiguous, replaced, or non-socket entries fail closed. Socket mode is
+  configurable (production design default `0660`); no user/group,
+  ownership, systemd, deployment, HTTP, credentials, or session work exists.
+- The adapter needs no orchestration change: it can use the Unix client through
+  `HistoricalBroker`, retaining adapter-owned retry, request-budget admission,
+  immutable per-attempt artifacts, fingerprint stability, and exact provider
+  byte preservation.
+- The project test guard now permits only `AF_UNIX` calls through its original
+  `connect`/`connect_ex` implementations; TCP remains guarded and loopback
+  remains allowed. This Windows Python build has no `socket.AF_UNIX`; 14
+  Unix-specific transport tests skip while the two guard tests pass. The
+  isolated Linux worktree ran the transport suite **16/16** and full discovery
+  **240/240**, with Unix and symlink tests unskipped. Existing focused suites
+  remain adapter **8/8**, protocol **32/32**, retry **20/20**, storage **15/15**,
+  and artifacts **14 passing, 1 Windows symlink skip**.
+- No live Zerodha request, HTTP transport, credential/session-file access,
+  `OfflineDownloader`, `StateLedger`, LEAN conversion, trading, deployment,
+  systemd, nested LEAN change, commit, or push occurred. Identity revalidation
+  reduces stale-socket TOCTOU risk but cannot claim to eliminate hostile
+  filesystem races; production ownership and deployment controls remain absent.
+
 ## Zerodha Phase 2B.5 offline historical-adapter checkpoint (2026-07-26)
 
 - Added `dhan_lean/providers/zerodha/adapter.py`, an immutable provider-local

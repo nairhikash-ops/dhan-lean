@@ -91,6 +91,11 @@ from dhan_lean.providers.zerodha.adapter import (
     ZerodhaHistoricalAdapterInput,
     ZerodhaHistoricalAdapterResult,
 )
+from dhan_lean.providers.zerodha.unix_transport import (
+    UnixHistoricalBrokerClient,
+    UnixHistoricalBrokerServer,
+    UnixTransportConfigurationError,
+)
 
 __all__ = [
     "AmbiguousInstrumentError",
@@ -168,4 +173,7 @@ __all__ = [
     "ZerodhaHistoricalAdapter",
     "ZerodhaHistoricalAdapterInput",
     "ZerodhaHistoricalAdapterResult",
+    "UnixHistoricalBrokerClient",
+    "UnixHistoricalBrokerServer",
+    "UnixTransportConfigurationError",
 ]

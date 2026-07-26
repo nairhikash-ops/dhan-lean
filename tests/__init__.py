@@ -24,6 +24,8 @@ _original_urlopen = urllib.request.urlopen
 
 
 def _guarded_socket_connect(sock: socket.socket, address):
+    if sock.family == getattr(socket, "AF_UNIX", None):
+        return _original_socket_connect(sock, address)
     host = address[0] if isinstance(address, tuple) and address else address
     if not _is_loopback(host):
         raise UnexpectedNetworkAttempt(
@@ -33,6 +35,8 @@ def _guarded_socket_connect(sock: socket.socket, address):
 
 
 def _guarded_socket_connect_ex(sock: socket.socket, address):
+    if sock.family == getattr(socket, "AF_UNIX", None):
+        return _original_socket_connect_ex(sock, address)
     host = address[0] if isinstance(address, tuple) and address else address
     if not _is_loopback(host):
         raise UnexpectedNetworkAttempt(

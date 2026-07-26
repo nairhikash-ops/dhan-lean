@@ -4,6 +4,28 @@
 
 ## Current offline Zerodha protocol checkpoint (2026-07-26)
 
+Phase 2C.1 adds an offline Unix-domain-socket historical broker transport:
+`ZerodhaHistoricalAdapter` can use `UnixHistoricalBrokerClient` over one local
+AF_UNIX connection per attempt to a bounded local `UnixHistoricalBrokerServer`
+that receives an injected deterministic fake broker. The existing 4-byte
+big-endian length-prefixed JSON protocol and base64 body representation are
+reused unchanged, so raw provider bytes remain exact and immutable artifacts
+remain unchanged. The client has no hidden retries or budgets; retries remain
+adapter-side and the server dispatches once per accepted request. Socket paths
+are validated; stale cleanup is explicit opt-in and only removes an unchanged
+socket after a refused-connect probe, while active or ambiguous endpoints fail
+closed. Cleanup similarly verifies server-owned device/inode identity.
+Configurable POSIX mode defaults conceptually to `0660`. This reduces but does
+not claim to eliminate hostile filesystem races; production ownership and
+deployment controls are not implemented. Credentials, session files, Zerodha HTTP,
+Kite Connect, systemd/deployment, user/group provisioning, `OfflineDownloader`,
+`StateLedger`, LEAN conversion, and trading remain unimplemented. No live
+Zerodha request occurred. The project test network guard permits only AF_UNIX
+through its normal guarded operations; TCP remains restricted. On this Windows
+Python build `AF_UNIX` is unavailable, so 14 Unix-specific transport tests skip.
+An isolated Linux worktree ran all 16 transport tests and full discovery (240/240)
+without skips.
+
 Phase 2B.5 now composes the complete offline Zerodha historical adapter flow:
 `DataWorkItem` resolution, deterministic planning, durable fake-broker budget
 and retry execution, per-attempt observation, mandatory immutable artifact
