@@ -5,6 +5,7 @@ import socket
 import stat
 import tempfile
 import threading
+import time
 import unittest
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -220,6 +221,34 @@ class TestUnixHistoricalBrokerTransport(unittest.TestCase):
             replacement.bind(os.fspath(self.path))
             self.server.stop(); self.server = None
             self.assertTrue(self.path.exists())
+
+    def test_stop_uses_one_deadline_for_multiple_blocked_connections(self):
+        self.server = UnixHistoricalBrokerServer(self.path, DeterministicFakeBroker([]),
+                                                  max_connections=4, connection_timeout=5)
+        self.server.start_in_thread()
+        clients = []
+        try:
+            for _ in range(4):
+                client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                client.connect(os.fspath(self.path)); client.sendall(b"\x00\x00")
+                clients.append(client)
+            limit = time.monotonic() + 1
+            while True:
+                with self.server._lock:
+                    count = len(self.server._workers)
+                if count == 4:
+                    break
+                self.assertLess(time.monotonic(), limit)
+                time.sleep(0.01)
+            started = time.monotonic()
+            self.assertTrue(self.server.stop(timeout=0.25))
+            self.assertLess(time.monotonic() - started, 0.7)
+            self.assertTrue(self.server.stop(timeout=0))
+            self.server = None
+            self.assertFalse(self.path.exists())
+        finally:
+            for client in clients:
+                client.close()
 
 
 class TestUnixTransportNetworkGuard(unittest.TestCase):

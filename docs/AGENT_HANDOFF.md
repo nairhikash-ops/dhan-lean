@@ -1,5 +1,48 @@
 # Agent Handoff
 
+## Zerodha Phase 2C.2 offline broker-service application checkpoint (2026-07-26)
+
+- Added `dhan_lean/providers/zerodha/broker_service.py`, an explicitly launched
+  development/test-only application shell for the completed Unix historical
+  broker server. Importing it has no socket or thread side effects; the CLI is
+  `python -m dhan_lean.providers.zerodha.broker_service` and requires
+  `--fake-upstream`.
+- `BrokerServiceConfig` contains only socket and lifecycle settings. It reuses
+  the Unix transport path validation, defaults to mode `0660` and disabled
+  stale cleanup, and has bounded backlog, concurrency, connection, and shutdown
+  settings. The executable constructs only `DeterministicFakeBroker`; tests may
+  inject a broker through `run_broker_service`.
+- Successful bind/listen emits a single flushed sanitized ready event. SIGINT
+  and SIGTERM handlers only set a shutdown event; lifecycle output is fixed
+  structured event names and never includes paths, frames, bodies, credentials,
+  session data, raw exceptions, or OS messages. Deterministic statuses cover
+  clean shutdown, configuration, startup, runtime, and unsupported-platform
+  outcomes. Ordinary diagnostic logger callback failures are ignored safely.
+- The application wraps `UnixHistoricalBrokerServer` rather than duplicating
+  framing, stale cleanup, worker management, dispatch, retries, artifacts,
+  parsing, or validation. Adapter-side retry and budget ownership remain
+  unchanged; the service has no retry loop.
+- Focused service tests cover CLI safety, configuration, injected runner
+  lifecycle, malformed/broker-failure stability, signal restoration, subprocess
+  readiness, SIGTERM/SIGINT, bind collision, stale policy, and owned cleanup.
+  Linux runs all service tests without skips. No production deployment claim is
+  made: ownership provisioning, user/group management, systemd, credentials,
+  session loading, and Zerodha HTTP remain unimplemented.
+- Windows focused service tests are **6 passing with 7 AF_UNIX skips**; Windows
+  full discovery is **254 passing, 23 skipped**. The isolated Linux worktree
+  ran service **13/13**, transport **17/17**, and full discovery **254/254**
+  without skips. `git diff --check` passed.
+- The server stop boundary now accepts one total timeout, uses a monotonic
+  deadline, closes its listener and accepted sockets before joining, and joins
+  all owned threads only with the remaining budget. A complete drain is
+  reported explicitly. Python cannot forcibly stop an injected broker blocked
+  inside a call: daemon worker threads therefore do not hold process exit, an
+  incomplete drain is a sanitized runtime failure rather than a clean stopped
+  event, and real upstream implementations must be cooperative/bounded for
+  graceful shutdown. Readiness delivery is mandatory (failure aborts startup);
+  ordinary lifecycle logging remains best effort. Signal registration restores
+  partial installation if a later registration fails.
+
 ## Zerodha Phase 2C.1 offline Unix-domain-socket checkpoint (2026-07-26)
 
 - Added `dhan_lean/providers/zerodha/unix_transport.py`: a provider-local,

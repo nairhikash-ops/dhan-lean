@@ -96,6 +96,13 @@ from dhan_lean.providers.zerodha.unix_transport import (
     UnixHistoricalBrokerServer,
     UnixTransportConfigurationError,
 )
+from dhan_lean.providers.zerodha.broker_service import (
+    BrokerServiceConfig,
+    BrokerServiceError,
+    BrokerServiceExitStatus,
+    BrokerServiceResult,
+    run_broker_service,
+)
 
 __all__ = [
     "AmbiguousInstrumentError",
@@ -176,4 +183,9 @@ __all__ = [
     "UnixHistoricalBrokerClient",
     "UnixHistoricalBrokerServer",
     "UnixTransportConfigurationError",
+    "BrokerServiceConfig",
+    "BrokerServiceError",
+    "BrokerServiceExitStatus",
+    "BrokerServiceResult",
+    "run_broker_service",
 ]

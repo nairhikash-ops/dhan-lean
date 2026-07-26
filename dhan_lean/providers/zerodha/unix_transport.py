@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import errno
+import math
 import os
 import socket
 import stat
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -192,6 +194,7 @@ class UnixHistoricalBrokerServer:
         self._listener: socket.socket | None = None
         self._stop = threading.Event()
         self._workers: set[threading.Thread] = set()
+        self._connections: set[socket.socket] = set()
         self._lock = threading.Lock()
         self._slots = threading.BoundedSemaphore(max_connections)
         self._owned_identity: tuple[int, int, int] | None = None
@@ -234,11 +237,12 @@ class UnixHistoricalBrokerServer:
             raise UnixTransportConfigurationError() from None
 
     def serve_forever(self) -> None:
-        if self._listener is None:
+        listener = self._listener
+        if listener is None:
             raise UnixTransportConfigurationError()
         while not self._stop.is_set():
             try:
-                connection, _ = self._listener.accept()
+                connection, _ = listener.accept()
             except socket.timeout:
                 continue
             except OSError:
@@ -246,19 +250,26 @@ class UnixHistoricalBrokerServer:
             if self._stop.is_set() or not self._slots.acquire(blocking=False):
                 connection.close()
                 continue
-            worker = threading.Thread(target=self._serve_one, args=(connection,), daemon=False)
+            worker = threading.Thread(target=self._serve_one, args=(connection,), daemon=True)
             with self._lock:
                 self._workers.add(worker)
+                self._connections.add(connection)
             worker.start()
 
     def start_in_thread(self) -> threading.Thread:
         self.start()
-        thread = threading.Thread(target=self.serve_forever, daemon=False)
+        thread = threading.Thread(target=self.serve_forever, daemon=True)
         thread.start()
         self._serve_thread = thread
         return thread
 
-    def stop(self) -> None:
+    def stop(self, timeout: float | None = None) -> bool:
+        """Stop within one total deadline and report whether all threads ended."""
+        if timeout is None:
+            timeout = self.connection_timeout + 1
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout < 0:
+            raise UnixTransportConfigurationError()
+        deadline = time.monotonic() + float(timeout)
         self._stop.set()
         listener, self._listener = self._listener, None
         if listener is not None:
@@ -266,14 +277,33 @@ class UnixHistoricalBrokerServer:
                 listener.close()
             except OSError:
                 pass
-        if self._serve_thread is not None and self._serve_thread is not threading.current_thread():
-            self._serve_thread.join(self.connection_timeout + 1)
-            self._serve_thread = None
+        with self._lock:
+            connections = tuple(self._connections)
+        for connection in connections:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                connection.close()
+            except OSError:
+                pass
+        serve_thread = self._serve_thread
+        if serve_thread is not None and serve_thread is not threading.current_thread():
+            serve_thread.join(max(0.0, deadline - time.monotonic()))
+            if not serve_thread.is_alive():
+                self._serve_thread = None
         with self._lock:
             workers = tuple(self._workers)
         for worker in workers:
-            worker.join(self.connection_timeout + 1)
+            if worker is not threading.current_thread():
+                worker.join(max(0.0, deadline - time.monotonic()))
+        with self._lock:
+            complete = not any(worker.is_alive() for worker in self._workers)
+        if self._serve_thread is not None and self._serve_thread.is_alive():
+            complete = False
         self._cleanup_owned()
+        return complete
 
     def _remove_stale_socket(self) -> None:
         try:
@@ -372,6 +402,7 @@ class UnixHistoricalBrokerServer:
             self._slots.release()
             with self._lock:
                 self._workers.discard(current)
+                self._connections.discard(connection)
 
     @staticmethod
     def _local_failure(request: CandleRequest, code: BrokerErrorCode) -> BrokerResponse:

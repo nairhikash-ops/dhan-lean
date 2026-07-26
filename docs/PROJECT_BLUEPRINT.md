@@ -4,6 +4,28 @@
 
 ## Current offline Zerodha protocol checkpoint (2026-07-26)
 
+Phase 2C.2 adds an offline standalone broker-service application shell around
+the completed Unix server. It is explicitly launched with a required fake-only
+mode and accepts only safe socket/lifecycle settings; it constructs no HTTP,
+credential, session, or provider implementation. The service emits sanitized
+structured lifecycle events after a successful bind/listen, handles SIGINT and
+SIGTERM by setting a shutdown event, uses deterministic exit statuses, and
+delegates owned-socket cleanup and stale-socket policy to the Unix server.
+Stale cleanup remains disabled by default. Client/server retries remain absent;
+adapter orchestration remains the budget and retry owner. This is development
+and test-only: production ownership/provisioning, user/group setup, systemd,
+credentials/session loading, Zerodha HTTP, `OfflineDownloader`, `StateLedger`,
+LEAN conversion, live data, and trading remain unimplemented. No live Zerodha
+request occurred. Windows focused service tests have 6 passes and 7 AF_UNIX
+skips, while full discovery has 254 passes and 23 skips; isolated Linux service
+and full discovery runs are 13/13 and 254/254 with no skips.
+Service shutdown uses a single monotonic deadline rather than a per-worker
+timeout. It closes owned accepted sockets before joining and reports incomplete
+worker drain as a runtime failure; Python does not forcibly kill an injected
+broker blocked inside a call, so real upstream calls must be cooperative and
+bounded for graceful shutdown. Readiness publication is mandatory and aborts
+startup on failure, while ordinary operational logging remains best effort.
+
 Phase 2C.1 adds an offline Unix-domain-socket historical broker transport:
 `ZerodhaHistoricalAdapter` can use `UnixHistoricalBrokerClient` over one local
 AF_UNIX connection per attempt to a bounded local `UnixHistoricalBrokerServer`
